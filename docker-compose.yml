@@ -1,0 +1,21 @@
+# Ambiente de DESENVOLVIMENTO: apenas o Postgres local.
+# API e web rodam com `npm run dev` (ver README.md).
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: spotify-bar-dev-db
+    environment:
+      POSTGRES_USER: spotifybar
+      POSTGRES_PASSWORD: spotifybar
+      POSTGRES_DB: spotifybar
+    ports:
+      - "5436:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U spotifybar"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+volumes:
+  pgdata:

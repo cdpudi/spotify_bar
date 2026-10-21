@@ -1,0 +1,10 @@
+# Sobreposição para testar a stack de produção LOCALMENTE (sem Traefik):
+#   docker compose -p sbteste -f docker-compose.portainer.yml -f deploy/docker-compose.teste.yml up -d --build
+services:
+  web:
+    networks: !override [interna]
+    labels: !reset []
+    ports:
+      - "8085:80"
+networks:
+  traefik: !reset {}

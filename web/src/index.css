@@ -1,0 +1,84 @@
+@import '@fontsource-variable/inter';
+@import 'tailwindcss';
+
+/* Design tokens — linguagem escura inspirada no Spotify, com identidade própria */
+@theme {
+  --font-sans: 'Inter Variable', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --color-bg: #0b0b0c;
+  --color-surface: #161617;
+  --color-elevated: #212123;
+  --color-hover: #2b2b2e;
+  --color-line: #2e2e31;
+  --color-text: #ffffff;
+  --color-muted: #a7a7ab;
+  --color-faint: #6f6f75;
+  --color-brand: #1ed760;
+  --color-brand-hover: #3be477;
+  --color-gold: #ffc247;
+  --color-danger: #f3727f;
+  --color-info: #539df5;
+  --radius-card: 12px;
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+body {
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  overscroll-behavior-y: none;
+}
+button {
+  cursor: pointer;
+}
+button:disabled {
+  cursor: not-allowed;
+}
+:focus-visible {
+  outline: 2px solid var(--color-brand);
+  outline-offset: 2px;
+}
+::selection {
+  background: color-mix(in oklab, var(--color-brand) 40%, transparent);
+}
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-hover) transparent;
+}
+
+/* Equalizador animado (música tocando) */
+@keyframes eq {
+  0%, 100% { transform: scaleY(0.25); }
+  50% { transform: scaleY(1); }
+}
+.eq span {
+  display: inline-block;
+  width: 3px;
+  height: 14px;
+  margin-right: 2px;
+  background: var(--color-brand);
+  border-radius: 2px;
+  transform-origin: bottom;
+  animation: eq 0.9s ease-in-out infinite;
+}
+.eq span:nth-child(2) { animation-delay: -0.3s; }
+.eq span:nth-child(3) { animation-delay: -0.6s; }
+.eq.pausado span { animation-play-state: paused; transform: scaleY(0.3); }
+
+@keyframes subir {
+  from { transform: translateY(24px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+.animar-subir { animation: subir 0.22s ease-out; }
+@keyframes aparecer { from { opacity: 0; } to { opacity: 1; } }
+.animar-aparecer { animation: aparecer 0.18s ease-out; }
+
+@media (prefers-reduced-motion: reduce) {
+  .eq span, .animar-subir, .animar-aparecer { animation: none; }
+}
+
+.safe-b { padding-bottom: max(env(safe-area-inset-bottom), 0px); }

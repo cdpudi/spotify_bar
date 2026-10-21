@@ -1,0 +1,70 @@
+# Stack de PRODUÇÃO para o Portainer (Stacks → Add stack → Repository ou Web editor).
+# Segue o padrão dos demais projetos da VPS: rede externa `traefik`, certresolver `letsencrypt`.
+# Variáveis: preencha no painel "Environment variables" do Portainer (modelo em .env.example).
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: spotify-bar-db
+    restart: unless-stopped
+    networks: [interna]
+    environment:
+      POSTGRES_DB: spotifybar
+      POSTGRES_USER: spotifybar
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?Defina DB_PASSWORD}
+    volumes:
+      - spotify-bar-db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U spotifybar"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build: ./api
+    container_name: spotify-bar-api
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    networks: [interna]
+    environment:
+      NODE_ENV: production
+      PORT: "3002"
+      DATABASE_URL: postgres://spotifybar:${DB_PASSWORD}@db:5432/spotifybar
+      JWT_SECRET: ${JWT_SECRET:?Defina JWT_SECRET}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY:?Defina ENCRYPTION_KEY}
+      PUBLIC_URL: ${PUBLIC_URL:-https://spotify-bar.umg.com.br}
+      API_URL: ${PUBLIC_URL:-https://spotify-bar.umg.com.br}
+      SPOTIFY_MODE: ${SPOTIFY_MODE:-real}
+      SPOTIFY_CLIENT_ID: ${SPOTIFY_CLIENT_ID:-}
+      SPOTIFY_CLIENT_SECRET: ${SPOTIFY_CLIENT_SECRET:-}
+      PIX_MODE: ${PIX_MODE:-real}
+      PLATFORM_PIX_PROVIDER: ${PLATFORM_PIX_PROVIDER:-estatico}
+      PLATFORM_PIX_KEY: ${PLATFORM_PIX_KEY:-}
+      PLATFORM_PIX_NAME: ${PLATFORM_PIX_NAME:-SPOTIFY BAR}
+      PLATFORM_PIX_CITY: ${PLATFORM_PIX_CITY:-SAO PAULO}
+      PLATFORM_MP_ACCESS_TOKEN: ${PLATFORM_MP_ACCESS_TOKEN:-}
+      MP_WEBHOOK_SECRET: ${MP_WEBHOOK_SECRET:-}
+
+  web:
+    build: ./web
+    container_name: spotify-bar-web
+    restart: unless-stopped
+    depends_on: [api]
+    networks: [interna, traefik]
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=traefik"
+      - "traefik.http.routers.spotify-bar.rule=Host(`spotify-bar.umg.com.br`)"
+      - "traefik.http.routers.spotify-bar.entrypoints=websecure"
+      - "traefik.http.routers.spotify-bar.tls=true"
+      - "traefik.http.routers.spotify-bar.tls.certresolver=letsencrypt"
+      - "traefik.http.services.spotify-bar.loadbalancer.server.port=80"
+
+networks:
+  interna:
+  traefik:
+    external: true
+
+volumes:
+  spotify-bar-db:
