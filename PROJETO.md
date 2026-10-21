@@ -63,7 +63,7 @@ spotify_bar/
 
 ### Perfis e permissões (decisão de 21/10/2026)
 - **Administrador da plataforma** (`usuarios.papel='admin'`): único que cria bares e responsáveis e altera dados do bar, Spotify (contas/dispositivos), Pix, QR Code (regenerar), plano/cobrança, bloqueio. Criado na subida por `ADMIN_EMAIL`/`ADMIN_SENHA`. **Não existe cadastro público.**
-- **Responsável pelo bar** (`papel='dono'`): **altera apenas o catálogo**. Também acompanha o painel ao vivo, **controla o player/fila** (pausar, pular, remover — operação do dia a dia), confirma "Recebi" de super chat, **vê os pagamentos e as estatísticas do próprio bar** (somente leitura), vê QR Code e plano/vencimento e pode pagar a mensalidade por Pix.
+- **Responsável pelo bar** (`papel='dono'`): **altera apenas o catálogo**. Também acompanha o painel ao vivo, **controla o player/fila** (pausar, pular, remover — operação do dia a dia), confirma "Recebi" de super chat, **vê os pagamentos que o bar fez à plataforma (mensalidades), a lista de super chats do público (recebido ou não), as estatísticas do próprio bar** (somente leitura), o QR Code e o plano/vencimento. **Não paga nem troca de plano:** a tela de plano só mostra os cards e destaca o atual; para mudar, entra em contato com o administrador.
 - Premissa: moderação da fila e confirmação de super chat ficam com o responsável por serem operação, não "informação" do bar. Se quiser restringir, é trocar `auth`→`admin` em `routes/bares.ts`/`pagamentos.ts`.
 
 ### Cobrança, vencimento e bloqueio
@@ -71,7 +71,7 @@ spotify_bar/
 - **Tela "Bares e cobrança"** (admin): lista com plano, vencimento ("em N dias"/"há N dias"), último pagamento (data, forma, valor), pedidos; filtros por situação; ações **Registrar pagamento**, **Bloquear** (com motivo) e **Desbloquear**.
 - **Registrar pagamento** (`POST /api/admin/bares/:id/mensalidades`): plano, **forma de recebimento (Pix, dinheiro, outro)**, valor, data e **próximo vencimento** (vazio = soma o período do plano ao vencimento vigente). Gera o lançamento em `pagamentos` (`provider='manual'`) e **desbloqueia** o bar. Pix online da assinatura também cai aqui com `forma='pix'`.
 - **Bloqueio é decisão do administrador** (não automático): o bar some da busca por GPS, ninguém entra na sala (403), o player para de receber músicas e o responsável vê o aviso e o motivo. Plano vencido já derruba o bar para Free (sem super chat) mesmo sem bloqueio.
-- **Todos os pagamentos** (`/api/admin/pagamentos`, e `/api/bares/:id/pagamentos` para o responsável): super chats e mensalidades, filtros (bar, tipo, forma, situação, período) e **totais por forma e por tipo**. Super chat confirmado manualmente informa a forma (Pix/dinheiro/outro).
+- **Pagamentos** — duas visões distintas: (a) `/api/bares/:id/pagamentos` = **mensalidades que o bar pagou à plataforma** (o que o responsável vê, com a forma: Pix/dinheiro); (b) `/api/bares/:id/superchats` = **pedidos de super chat do público** e se foram **recebidos, aguardando ou não recebidos** (com "Recebi" Pix/dinheiro para os pendentes). O administrador vê tudo da plataforma em `/api/admin/pagamentos` (super chats e mensalidades de todos os bares): filtros (bar, tipo, forma, situação, período) e **totais por forma e por tipo**. Super chat confirmado manualmente informa a forma (Pix/dinheiro/outro).
 - **Estatísticas** (`/api/admin/estatisticas`, `/api/bares/:id/estatisticas`): músicas pedidas, tocadas, super chats, votos, participantes, **mais pedidas**, pedidos por dia e por bar, com filtro de período.
 
 ## 3. UX/UI
@@ -159,5 +159,6 @@ Veja o [README.md](README.md) (rodar local, testes, deploy no Portainer, variáv
 
 | Data | Mudança |
 |---|---|
+| 21/10/2026 | Ajuste: pagamentos do responsável = mensalidades à plataforma; nova tela Super chat (recebido ou não); plano só consulta (troca via administrador; `/assinar` passou a ser só admin). |
 | 21/10/2026 | Perfis admin/responsável, cobrança com vencimento e bloqueio, pagamentos por forma, estatísticas de pedidos (e2e: 17 cenários). |
 | 21/10/2026 | Projeto criado: API, front, Docker/Portainer, testes unitários e e2e, documentação. Repositório privado no GitHub. |

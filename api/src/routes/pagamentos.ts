@@ -27,7 +27,7 @@ export async function rotasPagamentos(app: FastifyInstance) {
   const auth = { preHandler: app.exigirUsuario };
 
   // Assinatura do plano (Pix para a plataforma)
-  app.post('/api/bares/:id/assinar', auth, async (req, reply) => {
+  app.post('/api/bares/:id/assinar', { preHandler: app.exigirAdmin }, async (req, reply) => {
     const bar = await barDoUsuario((req.params as any).id, req.user.sub);
     const { plano } = z.object({ plano: z.enum(['mensal', 'semestral', 'anual']) }).parse(req.body);
     if (config.pix.modo === 'real' && config.pix.plataformaProvider === 'estatico' && !config.pix.plataformaChave) {
@@ -37,11 +37,40 @@ export async function rotasPagamentos(app: FastifyInstance) {
     return reply.code(201).send(paraCliente(p));
   });
 
-  // Pagamentos do bar (dono e administrador): super chats e mensalidades, com forma de recebimento
+  // Pagamentos que o bar fez à PLATAFORMA (mensalidades), com a forma de recebimento
   app.get('/api/bares/:id/pagamentos', auth, async (req) => {
     const bar = await barDoUsuario((req.params as any).id, req.user.sub);
     const f = req.query as Record<string, string | undefined>;
-    return listarPagamentos({ barId: bar.id, tipo: f.tipo, forma: f.forma, status: f.status, de: f.de, ate: f.ate });
+    return listarPagamentos({ barId: bar.id, tipo: 'assinatura', forma: f.forma, status: f.status, de: f.de, ate: f.ate });
+  });
+
+  // Super chats pedidos pelo público no bar e se o valor foi recebido
+  app.get('/api/bares/:id/superchats', auth, async (req) => {
+    const bar = await barDoUsuario((req.params as any).id, req.user.sub);
+    const f = req.query as Record<string, string | undefined>;
+    const params = [bar.id, f.status || null, f.de || null, f.ate || null];
+    const onde = `p.bar_id = $1 and p.tipo = 'superchat'
+      and ($2::text is null or p.status = $2)
+      and ($3::date is null or p.criado_em >= $3::date)
+      and ($4::date is null or p.criado_em < $4::date + 1)`;
+    const itens = await q(
+      `select p.id, p.status, p.forma, p.provider, p.valor_centavos, p.criado_em, p.pago_em, fl.nome as musica, fl.artistas,
+              fl.solicitante_apelido as apelido, fl.status as situacao_musica
+         from pagamentos p left join fila fl on fl.id = p.fila_id
+        where ${onde} order by p.criado_em desc limit 300`,
+      params,
+    );
+    const resumo = await q1(
+      `select count(*)::int as pedidos,
+              count(*) filter (where p.status='pago')::int as recebidos,
+              count(*) filter (where p.status='pendente')::int as aguardando,
+              count(*) filter (where p.status in ('expirado','cancelado'))::int as nao_pagos,
+              coalesce(sum(p.valor_centavos) filter (where p.status='pago'),0)::int as valor_recebido_centavos,
+              coalesce(sum(p.valor_centavos) filter (where p.status='pendente'),0)::int as valor_aguardando_centavos
+         from pagamentos p where ${onde}`,
+      params,
+    );
+    return { resumo, itens };
   });
 
   // Consulta de um pagamento (dono do bar)

@@ -64,8 +64,8 @@ export default function PagamentosPagina({ plataforma }: { plataforma?: boolean 
     <div className="space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-extrabold">Pagamentos{plataforma ? ' da plataforma' : ''}</h1>
-          <p className="text-sm text-muted">{plataforma ? 'Mensalidades e super chats de todos os bares, com a forma de recebimento.' : `Mensalidades e super chats de ${bar?.nome ?? 'seu bar'}.`}</p>
+          <h1 className="text-2xl font-extrabold">{plataforma ? 'Pagamentos da plataforma' : 'Pagamentos à plataforma'}</h1>
+          <p className="text-sm text-muted">{plataforma ? 'Mensalidades e super chats de todos os bares, com a forma de recebimento.' : `Mensalidades de ${bar?.nome ?? 'seu bar'} pagas à plataforma, e como cada uma foi recebida. Os super chats do público ficam em “Super chat”.`}</p>
         </div>
         {ehAdmin && plataforma && <Botao onClick={() => setRegistrando(true)}><CircleDollarSign className="size-4" /> Registrar pagamento</Botao>}
       </div>
@@ -80,7 +80,7 @@ export default function PagamentosPagina({ plataforma }: { plataforma?: boolean 
             {bares?.map((b) => <option key={b.id} value={b.id}>{b.nome}</option>)}
           </Select>
         )}
-        <Select value={tipo} onChange={(e) => setTipo(e.target.value)} aria-label="Tipo"><option value="">Todos os tipos</option>{Object.entries(TIPOS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</Select>
+        {plataforma && <Select value={tipo} onChange={(e) => setTipo(e.target.value)} aria-label="Tipo"><option value="">Todos os tipos</option>{Object.entries(TIPOS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</Select>}
         <Select value={forma} onChange={(e) => setForma(e.target.value)} aria-label="Forma de recebimento"><option value="">Toda forma</option>{Object.entries(FORMAS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</Select>
         <Select value={status} onChange={(e) => setStatus(e.target.value)} aria-label="Situação"><option value="">Toda situação</option>{Object.entries(STATUS).map(([k, v]) => <option key={k} value={k}>{v.rotulo}</option>)}</Select>
         <Input type="date" value={de} onChange={(e) => setDe(e.target.value)} aria-label="De" />
@@ -88,16 +88,16 @@ export default function PagamentosPagina({ plataforma }: { plataforma?: boolean 
         {(tipo || forma || status || de || ate || barFiltro) && <Botao variante="fantasma" onClick={() => { setTipo(''); setForma(''); setStatus(''); setDe(''); setAte(''); setBarFiltro(''); }}>Limpar filtros</Botao>}
       </Cartao>
 
-      <div className="grid gap-3 sm:grid-cols-3">
-        <Cartao><p className="text-xs font-semibold text-muted">Total recebido (pagos)</p><p className="mt-1 text-2xl font-extrabold text-brand">{reais(total)}</p></Cartao>
+      <div className={`grid gap-3 ${plataforma ? 'sm:grid-cols-3' : 'sm:grid-cols-2'}`}>
+        <Cartao><p className="text-xs font-semibold text-muted">{plataforma ? 'Total recebido (pagos)' : 'Total pago à plataforma'}</p><p className="mt-1 text-2xl font-extrabold text-brand">{reais(total)}</p></Cartao>
         <Cartao>
           <p className="text-xs font-semibold text-muted">Por forma de recebimento</p>
           <p className="mt-1 space-x-3 text-sm">{Object.keys(porForma).length ? Object.entries(porForma).map(([k, v]) => <span key={k}><span className="text-muted">{FORMAS[k] ?? k}</span> <b>{reais(v)}</b></span>) : <span className="text-muted">—</span>}</p>
         </Cartao>
-        <Cartao>
+        {plataforma && <Cartao>
           <p className="text-xs font-semibold text-muted">Por tipo</p>
           <p className="mt-1 space-x-3 text-sm">{Object.keys(porTipo).length ? Object.entries(porTipo).map(([k, v]) => <span key={k}><span className="text-muted">{TIPOS[k] ?? k}</span> <b>{reais(v)}</b></span>) : <span className="text-muted">—</span>}</p>
-        </Cartao>
+        </Cartao>}
       </div>
 
       {!dados ? <p className="text-muted">Carregando…</p> : dados.itens.length === 0 ? (

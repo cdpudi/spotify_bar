@@ -253,7 +253,8 @@ await passo('cobrança: mensalidade em dinheiro com próximo vencimento, situaç
   assert.equal(r2.j.bar.situacao, 'em_dia');
   assert.ok(r2.j.bar.dias_para_vencer >= 32);
   // assinatura online (Pix simulado) também entra como forma pix
-  const ass = await http('POST', `/api/bares/${bar2.id}/assinar`, { plano: 'semestral' }, dono2);
+  assert.equal((await http('POST', `/api/bares/${bar2.id}/assinar`, { plano: 'semestral' }, dono2)).status, 403, 'dono não troca de plano');
+  const ass = await http('POST', `/api/bares/${bar2.id}/assinar`, { plano: 'semestral' }, adm);
   assert.equal(ass.j.valor_centavos, 100000);
   await http('POST', `/api/pagamentos/${ass.j.id}/simular`);
   assert.equal((await http('GET', `/api/bares/${bar2.id}`, undefined, dono2)).j.plano_efetivo, 'semestral');
@@ -289,6 +290,7 @@ await passo('pagamentos: administrador vê todos; dono vê só os do seu bar; to
   assert.ok(so.j.itens.length >= 2 && so.j.itens.every((p: any) => p.forma === 'dinheiro'));
   const meus = (await http('GET', `/api/bares/${bar2.id}/pagamentos`, undefined, dono2)).j;
   assert.ok(meus.itens.length >= 3 && meus.itens.every((p: any) => p.bar_id === bar2.id));
+  assert.ok(meus.itens.every((p: any) => p.tipo === 'assinatura'), 'pagamentos do bar = mensalidades à plataforma');
   assert.equal((await http('GET', `/api/bares/${bar.id}/pagamentos`, undefined, dono2)).status, 404);
   // super chat confirmado manualmente pelo bar, informando como recebeu
   const alvo = musica('Garota de Ipanema');
@@ -297,6 +299,14 @@ await passo('pagamentos: administrador vê todos; dono vê só os do seu bar; to
   const conf = await http('POST', `/api/bares/${bar.id}/pagamentos/${sp.j.id}/confirmar`, { forma: 'dinheiro' }, admin);
   assert.equal(conf.j.forma, 'dinheiro');
   assert.equal(conf.j.status, 'pago');
+  // lista de super chats do bar: recebidos x aguardando
+  const sp2 = await http('POST', `/api/public/bares/${slug}/superchat`, { catalogo_id: musica('Faz Gostoso').id }, C);
+  const lista = (await http('GET', `/api/bares/${bar.id}/superchats`, undefined, admin)).j;
+  assert.ok(lista.resumo.recebidos >= 2 && lista.resumo.aguardando >= 1);
+  assert.ok(lista.itens.some((i: any) => i.musica === 'Garota de Ipanema' && i.status === 'pago' && i.forma === 'dinheiro'));
+  assert.ok(lista.itens.some((i: any) => i.id === sp2.j.id && i.status === 'pendente'));
+  assert.equal((await http('GET', `/api/bares/${bar.id}/superchats?status=pendente`, undefined, admin)).j.itens.every((i: any) => i.status === 'pendente'), true);
+  assert.equal((await http('GET', `/api/bares/${bar.id}/superchats`, undefined, dono2)).status, 404);
 });
 
 await passo('estatísticas: pedidos, mais pedidas, por bar e período', async () => {

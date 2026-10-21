@@ -1,4 +1,4 @@
-import { BarChart3, Building2, CreditCard, Disc3, LayoutDashboard, ListMusic, LogOut, Plus, QrCode, Receipt, Store, Users, Wallet } from 'lucide-react';
+import { BarChart3, Building2, CreditCard, Disc3, LayoutDashboard, ListMusic, LogOut, Plus, QrCode, Receipt, Store, Users, Wallet, Zap } from 'lucide-react';
 import { NavLink, Navigate, Outlet, useNavigate } from 'react-router-dom';
 import { Carregando, Logo, Select } from '../../components/ui';
 import { useAuth } from '../../lib/auth';
@@ -11,7 +11,8 @@ const MENU: ItemMenu[] = [
   { to: '/admin', fim: true, rotulo: 'Painel', Icone: LayoutDashboard },
   { to: '/admin/catalogo', rotulo: 'Catálogo', Icone: ListMusic },
   { to: '/admin/estatisticas', rotulo: 'Estatísticas', curto: 'Stats', Icone: BarChart3 },
-  { to: '/admin/pagamentos', rotulo: 'Pagamentos', curto: 'Pagtos', Icone: Receipt },
+  { to: '/admin/superchats', rotulo: 'Super chat', curto: 'Super', Icone: Zap },
+  { to: '/admin/pagamentos', rotulo: 'Pagamentos à plataforma', curto: 'Pagtos', Icone: Receipt },
   { to: '/admin/plano', rotulo: 'Plano', Icone: CreditCard },
   { to: '/admin/qrcode', rotulo: 'QR Code', Icone: QrCode },
   { to: '/admin/bar', rotulo: 'Dados do bar', curto: 'Bar', Icone: Store, admin: true },
