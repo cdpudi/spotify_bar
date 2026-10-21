@@ -33,7 +33,13 @@ async function chamar(token: string, metodo: string, caminho: string, corpo?: un
     }
     throw new ErroSpotify(r.status, `Spotify ${r.status}: ${msg}`);
   }
-  return texto ? JSON.parse(texto) : null;
+  if (!texto) return null;
+  try {
+    return JSON.parse(texto);
+  } catch {
+    // comandos do player (pause/play/next) respondem 200 com um id em texto puro: sucesso, sem JSON
+    return null;
+  }
 }
 
 async function tokenEndpoint(params: Record<string, string>) {
