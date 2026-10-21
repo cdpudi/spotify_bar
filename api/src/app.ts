@@ -5,7 +5,9 @@ import Fastify, { type FastifyReply, type FastifyRequest } from 'fastify';
 import { ZodError } from 'zod';
 import { config } from './config.js';
 import { pool } from './db.js';
+import { ehAdmin } from './lib/bares.js';
 import { ErroHttp } from './lib/erros.js';
+import { rotasAdmin } from './routes/admin.js';
 import { rotasAuth } from './routes/auth.js';
 import { rotasBares } from './routes/bares.js';
 import { rotasCatalogo } from './routes/catalogo.js';
@@ -17,6 +19,7 @@ declare module 'fastify' {
   interface FastifyInstance {
     exigirUsuario: (req: FastifyRequest, reply: FastifyReply) => Promise<void>;
     exigirSessao: (req: FastifyRequest, reply: FastifyReply) => Promise<void>;
+    exigirAdmin: (req: FastifyRequest, reply: FastifyReply) => Promise<void>;
   }
 }
 declare module '@fastify/jwt' {
@@ -46,6 +49,15 @@ export async function criarApp() {
     }
     if (req.user.tipo !== 'usuario') throw new ErroHttp(401, 'Token inválido');
   });
+  app.decorate('exigirAdmin', async (req: FastifyRequest) => {
+    try {
+      await req.jwtVerify();
+    } catch {
+      throw new ErroHttp(401, 'Sessão expirada. Faça login novamente.');
+    }
+    if (req.user.tipo !== 'usuario') throw new ErroHttp(401, 'Token inválido');
+    if (!(await ehAdmin(req.user.sub))) throw new ErroHttp(403, 'Apenas o administrador da plataforma pode fazer isso.');
+  });
   app.decorate('exigirSessao', async (req: FastifyRequest) => {
     try {
       await req.jwtVerify();
@@ -73,6 +85,7 @@ export async function criarApp() {
   });
 
   await app.register(rotasAuth);
+  await app.register(rotasAdmin);
   await app.register(rotasBares);
   await app.register(rotasSpotify);
   await app.register(rotasCatalogo);

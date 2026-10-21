@@ -15,6 +15,9 @@ export const config = {
   porta: Number(env.PORT ?? 3002),
   // saltos de proxy confiáveis (Traefik + Nginx = 2). Em dev, sem proxy = 0.
   proxyHops: Number(env.TRUST_PROXY_HOPS ?? (producao ? 2 : 0)),
+  // administrador da plataforma (criado na subida se não existir). Em dev há um padrão; em produção defina no ambiente.
+  adminEmail: env.ADMIN_EMAIL ?? (producao ? '' : 'admin@spotifybar.dev'),
+  adminSenha: env.ADMIN_SENHA ?? (producao ? '' : 'admin12345'),
   databaseUrl: env.DATABASE_URL ?? 'postgres://spotifybar:spotifybar@localhost:5436/spotifybar',
   jwtSecret: obrigatorioEmProducao('JWT_SECRET', 'dev-secret-troque-em-producao'),
   encryptionKey: obrigatorioEmProducao('ENCRYPTION_KEY', 'dev-encryption-key-troque'),

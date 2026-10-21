@@ -1,7 +1,7 @@
 import { Crosshair, ExternalLink, MapPinned, Save, Search } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Aviso, Botao, Campo, Cartao, Chip, Input } from '../../components/ui';
+import { Aviso, Botao, Campo, Cartao, Chip, Input, Select } from '../../components/ui';
 import { api, mensagemErro } from '../../lib/api';
 import { useAuth } from '../../lib/auth';
 import { posicaoAtual } from '../../lib/publico';
@@ -10,7 +10,7 @@ import { useBar } from './contexto';
 const vazio = {
   nome: '', cnpj: '', telefone: '', email: '', cep: '', logradouro: '', numero: '', complemento: '', bairro: '', cidade: '', uf: '',
   latitude: '', longitude: '', raio_metros: 150, estilos: [] as string[], max_pedidos_por_sessao: 3, cooldown_repeticao_min: 30,
-  superchat_valor_centavos: 1000, ativo: true,
+  superchat_valor_centavos: 1000, ativo: true, usuario_id: '',
 };
 type Form = typeof vazio;
 
@@ -29,9 +29,11 @@ export default function BarForm({ novo }: { novo?: boolean }) {
   const [msg, setMsg] = useState<{ tipo: 'ok' | 'erro' | 'info'; texto: string } | null>(null);
   const [salvando, setSalvando] = useState(false);
   const [buscandoCoord, setBuscandoCoord] = useState(false);
+  const [donos, setDonos] = useState<{ id: string; nome: string; email: string; papel: string; ativo: boolean }[]>([]);
 
   useEffect(() => {
     api<string[]>('GET', '/api/estilos').then(setSugestoes, () => undefined);
+    req('GET', '/api/admin/usuarios').then(setDonos, () => undefined);
   }, []);
 
   useEffect(() => {
@@ -41,7 +43,7 @@ export default function BarForm({ novo }: { novo?: boolean }) {
       numero: bar.numero ?? '', complemento: bar.complemento ?? '', bairro: bar.bairro ?? '', cidade: bar.cidade ?? '', uf: bar.uf ?? '',
       latitude: bar.latitude?.toString() ?? '', longitude: bar.longitude?.toString() ?? '', raio_metros: bar.raio_metros, estilos: bar.estilos,
       max_pedidos_por_sessao: bar.max_pedidos_por_sessao, cooldown_repeticao_min: bar.cooldown_repeticao_min,
-      superchat_valor_centavos: bar.superchat_valor_centavos, ativo: bar.ativo,
+      superchat_valor_centavos: bar.superchat_valor_centavos, ativo: bar.ativo, usuario_id: bar.usuario_id,
     });
   }, [bar?.id, novo]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -93,6 +95,7 @@ export default function BarForm({ novo }: { novo?: boolean }) {
     const lat = Number(f.latitude.replace(',', '.'));
     const lng = Number(f.longitude.replace(',', '.'));
     if (!f.latitude || !f.longitude || Number.isNaN(lat) || Number.isNaN(lng)) return setMsg({ tipo: 'erro', texto: 'Informe latitude e longitude do bar — é por elas que os clientes encontram você.' });
+    if (!f.usuario_id) return setMsg({ tipo: 'erro', texto: 'Escolha o responsável pelo bar (cadastre em Responsáveis, se ainda não existir).' });
     if (!f.estilos.length) return setMsg({ tipo: 'erro', texto: 'Escolha ao menos um estilo musical.' });
     setSalvando(true);
     try {
@@ -125,6 +128,12 @@ export default function BarForm({ novo }: { novo?: boolean }) {
 
       <Cartao className="space-y-4">
         <h2 className="font-bold">Identificação</h2>
+        <Campo rotulo="Responsável pelo bar *" dica="Acessa o painel e altera apenas o catálogo">
+          <Select value={f.usuario_id} onChange={(e) => set('usuario_id', e.target.value)} required>
+            <option value="">Selecione…</option>
+            {donos.filter((d) => d.ativo).map((d) => <option key={d.id} value={d.id}>{d.nome} — {d.email}</option>)}
+          </Select>
+        </Campo>
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="sm:col-span-2"><Campo rotulo="Nome do bar *"><Input value={f.nome} onChange={(e) => set('nome', e.target.value)} required minLength={2} /></Campo></div>
           <Campo rotulo="CNPJ"><Input value={f.cnpj} onChange={(e) => set('cnpj', maskCnpj(e.target.value))} inputMode="numeric" placeholder="00.000.000/0000-00" /></Campo>

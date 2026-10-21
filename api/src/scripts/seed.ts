@@ -4,6 +4,7 @@
  * Execute com `npm run seed` (idempotente).
  */
 import { pool, migrar, q1 } from '../db.js';
+import { garantirAdmin } from '../lib/admin-inicial.js';
 import { hashSenha, cifrar } from '../lib/seguranca.js';
 import { BIBLIOTECA_MOCK } from '../spotify/mock.js';
 
@@ -15,6 +16,7 @@ const ESTILO_POR_FAIXA: Record<number, string> = {
 };
 
 await migrar();
+await garantirAdmin();
 
 let u = await q1('select * from usuarios where email=$1', ['demo@spotifybar.dev']);
 if (!u) u = await q1('insert into usuarios (nome,email,senha_hash) values ($1,$2,$3) returning *', ['Dono Demo', 'demo@spotifybar.dev', await hashSenha('demo12345')]);
@@ -46,5 +48,5 @@ for (const f of BIBLIOTECA_MOCK) {
     [bar.id, f.id, f.uri, f.nome, f.artistas, f.album, f.duracao_ms, ESTILO_POR_FAIXA[n] ?? 'Pop'],
   );
 }
-console.log(`Seed ok. Login: demo@spotifybar.dev / demo12345 — sala: /b/${bar.slug}?q=${bar.qr_token}`);
+console.log(`Seed ok. Admin: admin@spotifybar.dev / admin12345. Dono: demo@spotifybar.dev / demo12345 — sala: /b/${bar.slug}?q=${bar.qr_token}`);
 await pool.end();

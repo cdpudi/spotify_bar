@@ -98,7 +98,7 @@ async function ciclo() {
   try {
     const bares = await q(
       `select id, spotify_conta_id, spotify_device_id from bares
-        where ativo and spotify_conta_id is not null and spotify_device_id is not null`,
+        where ativo and not bloqueado and spotify_conta_id is not null and spotify_device_id is not null`,
     );
     for (const bar of bares) {
       try {

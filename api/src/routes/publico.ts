@@ -15,6 +15,7 @@ const LIMITE_BUSCA_KM = 20;
 async function barPorSlug(slug: string) {
   const bar = await q1('select * from bares where slug=$1', [slug]);
   if (!bar || !bar.ativo) throw new ErroHttp(404, 'Bar não encontrado ou inativo');
+  if (bar.bloqueado) throw new ErroHttp(403, 'Este bar está temporariamente indisponível.');
   return bar;
 }
 
@@ -43,7 +44,7 @@ export async function rotasPublico(app: FastifyInstance) {
       `select b.id, b.slug, b.nome, b.cidade, b.uf, b.bairro, b.latitude, b.longitude, b.raio_metros, b.estilos,
               p.nome as tocando_nome, p.artistas as tocando_artistas, p.capa_url as tocando_capa, coalesce(p.tocando,false) as tocando
          from bares b left join player_estado p on p.bar_id = b.id
-        where b.ativo and b.latitude between $1 and $2 and b.longitude between $3 and $4`,
+        where b.ativo and not b.bloqueado and b.latitude between $1 and $2 and b.longitude between $3 and $4`,
       [lat - dLat, lat + dLat, lng - dLng, lng + dLng],
     );
     return bares

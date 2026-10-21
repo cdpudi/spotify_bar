@@ -43,9 +43,11 @@ export default function PlanoPagina() {
         <h1 className="text-2xl font-extrabold">Plano</h1>
         <p className="text-sm text-muted">
           Plano atual de {bar.nome}: <strong className="text-white capitalize">{bar.plano_efetivo}</strong>
-          {bar.plano_efetivo !== 'free' && venc && <> · válido até {venc}</>}
+          {bar.plano !== 'free' && venc && <> · {bar.situacao === 'vencido' ? 'venceu' : 'vence'} em {venc}</>}
         </p>
       </div>
+      {bar.bloqueado && <Aviso tipo="erro"><b>Bar bloqueado:</b> {bar.motivo_bloqueio}. Pague a mensalidade abaixo ou fale com o administrador — o pagamento libera o bar.</Aviso>}
+      {!bar.bloqueado && bar.situacao === 'vencido' && <Aviso tipo="erro">Mensalidade vencida. Renove para reativar o super chat e evitar o bloqueio.</Aviso>}
       {msg && <Aviso tipo="erro">{msg}</Aviso>}
 
       <div className="grid gap-4 sm:grid-cols-2 2xl:grid-cols-4">

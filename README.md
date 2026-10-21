@@ -24,7 +24,8 @@ npm install
 npm run dev
 ```
 
-- Dono demo: **demo@spotifybar.dev / demo12345** → `http://localhost:5175/admin`
+- **Administrador** (dev): **admin@spotifybar.dev / admin12345** → `http://localhost:5175/admin` — vê tudo, cadastra bares/responsáveis, controla cobrança.
+- **Responsável do bar demo**: **demo@spotifybar.dev / demo12345** — só altera o catálogo (e acompanha painel, pagamentos e estatísticas do próprio bar).
 - Sala do bar demo (como se tivesse lido o QR): `http://localhost:5175/b/bar-do-ze-demo?q=demo-qr-token`
 - Em dev, `SPOTIFY_MODE=mock` e `PIX_MODE=mock` (padrões): o Spotify é simulado e o Pix tem o botão **"Simular pagamento"**.
 - GPS no navegador só funciona em HTTPS ou `localhost`.
@@ -49,13 +50,13 @@ cd ../web && npm run build   # typecheck + build
 
 1. DNS: `spotify-bar.umg.com.br` → VPS (a rede externa `traefik` e o resolvedor `letsencrypt` já usados pelos outros projetos).
 2. Portainer → **Stacks → Add stack → Repository** (este repositório privado, com credenciais) → *Compose path*: `docker-compose.portainer.yml`.
-3. Em **Environment variables** preencha o que está em `.env.example` (obrigatórias: `DB_PASSWORD`, `JWT_SECRET`, `ENCRYPTION_KEY`; defina `SPOTIFY_MODE=real` e `PIX_MODE=real`).
+3. Em **Environment variables** preencha o que está em `.env.example` (obrigatórias: `DB_PASSWORD`, `JWT_SECRET`, `ENCRYPTION_KEY`, `ADMIN_EMAIL`, `ADMIN_SENHA`; defina `SPOTIFY_MODE=real` e `PIX_MODE=real`).
    - Gerar segredos: `openssl rand -hex 32`. **Guarde a `ENCRYPTION_KEY`** — sem ela os tokens salvos ficam ilegíveis.
 4. *Deploy the stack*. A API aplica as migrations sozinha na subida.
 
 Testar a stack de produção na sua máquina (sem Traefik):
 ```bash
-export DB_PASSWORD=x JWT_SECRET=x ENCRYPTION_KEY=x SPOTIFY_MODE=mock PIX_MODE=mock PUBLIC_URL=http://localhost:8085
+export DB_PASSWORD=x JWT_SECRET=x ENCRYPTION_KEY=x ADMIN_EMAIL=admin@teste.dev ADMIN_SENHA=senha-forte-123 SPOTIFY_MODE=mock PIX_MODE=mock PUBLIC_URL=http://localhost:8085
 docker compose -p sbteste -f docker-compose.portainer.yml -f deploy/docker-compose.teste.yml up -d --build   # http://localhost:8085
 ```
 

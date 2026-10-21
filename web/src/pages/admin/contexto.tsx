@@ -33,6 +33,13 @@ export interface BarAdmin {
   pix_chave: string | null;
   pix_titular: string | null;
   mp_configurado: boolean;
+  usuario_id: string;
+  usuario_nome?: string;
+  usuario_email?: string;
+  bloqueado: boolean;
+  motivo_bloqueio: string | null;
+  situacao: string;
+  dias_para_vencer: number | null;
 }
 
 interface Ctx {

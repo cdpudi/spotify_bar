@@ -1,7 +1,7 @@
 # PROJETO.md — Spotify Bar
 
 > Documento vivo do projeto. **Atualize a cada mudança**: o que já foi feito, decisões tomadas e o que falta para entrar em produção.
-> Última atualização: 21/10/2026.
+> Última atualização: 21/10/2026 (gestão administrativa e cobrança).
 
 ## 1. O que é
 
@@ -38,7 +38,7 @@ spotify_bar/
 - **Autenticação:** dono do bar = e-mail + senha (scrypt) → JWT 7 dias. Cliente = sessão **anônima** por aparelho (UUID) → JWT 12 h emitido por bar, só após QR válido ou GPS dentro do raio.
 
 ### Modelo de dados (`api/migrations/001_init.sql`)
-`usuarios` · `spotify_contas` (do usuário; um bar escolhe conta + dispositivo) · `bares` · `catalogo` · `fila` · `votos` · `player_estado` · `pagamentos` · `configuracoes` · `schema_migrations`.
+`usuarios` (papel admin/dono) · `spotify_contas` (do usuário; um bar escolhe conta + dispositivo) · `bares` · `catalogo` · `fila` · `votos` · `player_estado` · `pagamentos` · `configuracoes` · `schema_migrations`.
 
 ### Regras de negócio implementadas
 | Regra | Onde |
@@ -50,7 +50,9 @@ spotify_bar/
 | Ordem: `enviada` > super chat (por hora de pagamento) > mais votos > mais antiga | `lib/estado.ts` (`ORDEM_FILA`) |
 | Super chat: só planos pagos; o Pix só vira prioridade **depois de pago**; Pix expira (15 min) | `payments/index.ts` |
 | Plano vencido volta a Free; renovar antes do vencimento soma o período | `lib/planos.ts`, `payments/index.ts` |
-| Limites do Free: 30 músicas, 1 conta Spotify, sem super chat (**definição nossa — ver §6**) | `lib/planos.ts` |
+| Limites do Free: 30 músicas, 1 conta Spotify, sem super chat (**definição nossa — ver §6**)
+| Dono só altera catálogo; demais dados só admin | `routes/bares.ts`, `routes/spotify.ts`, `lib/bares.ts` |
+| Bar bloqueado some do público e para o player | `routes/publico.ts`, `worker.ts`, `routes/admin.ts` | | `lib/planos.ts` |
 | Um dispositivo Spotify só atende um bar | `routes/bares.ts` |
 | Multi-tenant: dono só acessa os próprios bares | `lib/bares.ts` |
 
@@ -58,6 +60,19 @@ spotify_bar/
 - **Super chat → dinheiro vai direto para o bar.** Cada bar escolhe: **chave Pix estática** (BR Code; o bar confere o extrato e clica "Recebi" no painel) ou **Mercado Pago** (cobrança automática + webhook/consulta).
 - **Assinaturas → plataforma**: provedor definido por env (`PLATFORM_PIX_PROVIDER`).
 - `PIX_MODE=mock` simula tudo (botão "Simular pagamento"); **nunca usar em produção**.
+
+### Perfis e permissões (decisão de 21/10/2026)
+- **Administrador da plataforma** (`usuarios.papel='admin'`): único que cria bares e responsáveis e altera dados do bar, Spotify (contas/dispositivos), Pix, QR Code (regenerar), plano/cobrança, bloqueio. Criado na subida por `ADMIN_EMAIL`/`ADMIN_SENHA`. **Não existe cadastro público.**
+- **Responsável pelo bar** (`papel='dono'`): **altera apenas o catálogo**. Também acompanha o painel ao vivo, **controla o player/fila** (pausar, pular, remover — operação do dia a dia), confirma "Recebi" de super chat, **vê os pagamentos e as estatísticas do próprio bar** (somente leitura), vê QR Code e plano/vencimento e pode pagar a mensalidade por Pix.
+- Premissa: moderação da fila e confirmação de super chat ficam com o responsável por serem operação, não "informação" do bar. Se quiser restringir, é trocar `auth`→`admin` em `routes/bares.ts`/`pagamentos.ts`.
+
+### Cobrança, vencimento e bloqueio
+- `bares.plano` + `plano_expira_em` = plano e **próximo vencimento**. Situação calculada (`lib/cobranca.ts`): **Free · Em dia · Vence em breve (≤ 7 dias) · Vencido · Bloqueado**.
+- **Tela "Bares e cobrança"** (admin): lista com plano, vencimento ("em N dias"/"há N dias"), último pagamento (data, forma, valor), pedidos; filtros por situação; ações **Registrar pagamento**, **Bloquear** (com motivo) e **Desbloquear**.
+- **Registrar pagamento** (`POST /api/admin/bares/:id/mensalidades`): plano, **forma de recebimento (Pix, dinheiro, outro)**, valor, data e **próximo vencimento** (vazio = soma o período do plano ao vencimento vigente). Gera o lançamento em `pagamentos` (`provider='manual'`) e **desbloqueia** o bar. Pix online da assinatura também cai aqui com `forma='pix'`.
+- **Bloqueio é decisão do administrador** (não automático): o bar some da busca por GPS, ninguém entra na sala (403), o player para de receber músicas e o responsável vê o aviso e o motivo. Plano vencido já derruba o bar para Free (sem super chat) mesmo sem bloqueio.
+- **Todos os pagamentos** (`/api/admin/pagamentos`, e `/api/bares/:id/pagamentos` para o responsável): super chats e mensalidades, filtros (bar, tipo, forma, situação, período) e **totais por forma e por tipo**. Super chat confirmado manualmente informa a forma (Pix/dinheiro/outro).
+- **Estatísticas** (`/api/admin/estatisticas`, `/api/bares/:id/estatisticas`): músicas pedidas, tocadas, super chats, votos, participantes, **mais pedidas**, pedidos por dia e por bar, com filtro de período.
 
 ## 3. UX/UI
 
@@ -86,6 +101,9 @@ spotify_bar/
 - [x] Super chat + Pix (BR Code estático, Mercado Pago, mock), expiração, confirmação manual, webhook
 - [x] Planos Free/Mensal/Semestral/Anual com assinatura por Pix e ativação/renovação
 - [x] SSE em tempo real
+- [x] **Perfis admin/responsável**, sem cadastro público; criação de responsáveis e bares pelo admin
+- [x] **Cobrança**: vencimento, situação, registro manual de pagamento (pix/dinheiro/outro), bloqueio/desbloqueio
+- [x] **Gestão de pagamentos** e **estatísticas** (por bar e da plataforma)
 - [x] Testes: unitários (`npm test`: CRC16/BR Code, haversine, planos, cifra) e **e2e** (`npm run e2e`: 13 cenários — auth, GPS/QR, ordem da fila, limites, super chat, player, cooldown, multi-tenant, plano Free→Semestral)
 
 **Front**
@@ -107,8 +125,9 @@ spotify_bar/
 - [ ] **Marca:** o nome "Spotify Bar" e a estética usam a marca Spotify — avaliar renomear/ajustar para evitar conflito de marca.
 - [ ] **Recuperação de senha** e verificação de e-mail dos donos (precisa de SMTP).
 - [ ] **Anti-fraude de votos:** hoje a identidade é anônima por aparelho (rate limit por IP). Reforçar (ex.: token de sessão amarrado a nonce do QR, captcha leve, limites por bar).
-- [ ] **Painel da plataforma (super-admin):** ver bares, assinaturas, pagamentos, bloquear bar, ajustar planos/preços sem deploy.
-- [ ] **Cobrança recorrente / lembrete de vencimento** (hoje o plano é pré-pago por período, sem aviso de expiração).
+- [ ] Painel da plataforma: **ajustar planos/preços sem deploy** (o restante — bares, assinaturas, pagamentos, bloqueio — já existe).
+- [ ] **Bloqueio automático** ao vencer (hoje é manual por decisão do admin) e **aviso por e-mail/WhatsApp** de vencimento.
+- [ ] Cobrança recorrente automática (hoje o plano é pré-pago por período; o admin registra/renova).
 - [ ] **Repasse/relatório de super chats** para o bar (extrato, exportação CSV) e taxa da plataforma sobre super chat (**decisão de negócio em aberto**).
 - [ ] **Observabilidade:** logs estruturados já ligados em produção; falta alerta (player offline, falhas de token Spotify, Pix pendente demais).
 - [ ] **Testes automatizados no CI** (GitHub Actions: build + `npm test` + e2e com Postgres de serviço).
@@ -140,4 +159,5 @@ Veja o [README.md](README.md) (rodar local, testes, deploy no Portainer, variáv
 
 | Data | Mudança |
 |---|---|
+| 21/10/2026 | Perfis admin/responsável, cobrança com vencimento e bloqueio, pagamentos por forma, estatísticas de pedidos (e2e: 17 cenários). |
 | 21/10/2026 | Projeto criado: API, front, Docker/Portainer, testes unitários e e2e, documentação. Repositório privado no GitHub. |

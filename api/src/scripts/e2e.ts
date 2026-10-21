@@ -42,7 +42,8 @@ const sufixo = Date.now().toString(36);
 console.log('E2E Spotify Bar');
 
 const login = await http('POST', '/api/auth/login', { email: 'demo@spotifybar.dev', senha: 'demo12345' });
-const admin = login.j.token as string;
+const admin = login.j.token as string; // dono do bar demo
+let adm = (await http('POST', '/api/auth/login', { email: 'admin@spotifybar.dev', senha: 'admin12345' })).j.token as string; // administrador da plataforma
 const bares = (await http('GET', '/api/bares', undefined, admin)).j;
 const bar = bares[0];
 // estado limpo: sem histórico de fila/pagamentos do bar demo (o cooldown depende dele)
@@ -53,9 +54,9 @@ let A = '', B = '', C = '';
 const sidA = crypto.randomUUID(), sidB = crypto.randomUUID(), sidC = crypto.randomUUID();
 let cat: any[] = [];
 
-await passo('auth: senha errada é rejeitada, registro duplicado também', async () => {
+await passo('auth: senha errada é rejeitada e não há cadastro público', async () => {
   assert.equal((await http('POST', '/api/auth/login', { email: 'demo@spotifybar.dev', senha: 'errada123' })).status, 401);
-  assert.equal((await http('POST', '/api/auth/registrar', { nome: 'Xy', email: 'demo@spotifybar.dev', senha: '12345678' })).status, 409);
+  assert.equal((await http('POST', '/api/auth/registrar', { nome: 'Xy', email: 'demo@spotifybar.dev', senha: '12345678' })).status, 404, 'sem cadastro público');
   assert.equal((await http('GET', '/api/bares')).status, 401);
 });
 
@@ -96,7 +97,7 @@ const musica = (nome: string) => cat.find((m) => m.nome.includes(nome));
 await passo('fila: pedido, voto de outros, ordem por votos e depois por antiguidade', async () => {
   const wonder = musica('Wonderwall'), evid = musica('Evidências'), onda = musica('Como Uma Onda');
   // desliga o player do bar para a ordem da fila ser determinística
-  await http('PUT', `/api/bares/${bar.id}/spotify`, { conta_id: null, device_id: null }, admin);
+  await http('PUT', `/api/bares/${bar.id}/spotify`, { conta_id: null, device_id: null }, adm);
   // limpa a fila de execuções anteriores
   const f0 = (await http('GET', `/api/bares/${bar.id}/fila`, undefined, admin)).j.fila;
   for (const f of f0) await http('DELETE', `/api/bares/${bar.id}/fila/${f.id}`, undefined, admin);
@@ -154,7 +155,7 @@ await passo('super chat: Pix gerado, pago e a música passa na frente de todas',
   assert.equal((await http('POST', `/api/pagamentos/${p.j.id}/simular`)).j.status, 'pago', 'idempotente');
 });
 
-await http('PUT', `/api/bares/${bar.id}/spotify`, { conta_id: bar.spotify_conta_id, device_id: `celular-bar:e2e-${sufixo}`, device_nome: 'Celular E2E' }, admin);
+await http('PUT', `/api/bares/${bar.id}/spotify`, { conta_id: bar.spotify_conta_id, device_id: `celular-bar:e2e-${sufixo}`, device_nome: 'Celular E2E' }, adm);
 await passo('player: toca a 1ª da fila e agenda a seguinte antes do fim (super chat primeiro)', async () => {
   const est = await ate(async () => {
     const e = (await http('GET', `/api/public/bares/${slug}/estado`, undefined, A)).j;
@@ -191,38 +192,125 @@ await passo('painel: pausar/retomar/pular e remover da fila', async () => {
   if (fila[0]) assert.equal((await http('DELETE', `/api/bares/${bar.id}/fila/${fila[0].id}`, undefined, admin)).status, 200);
 });
 
-await passo('multi-tenant: outro dono não acessa o bar', async () => {
-  const outro = (await http('POST', '/api/auth/registrar', { nome: 'Outro', email: `outro-${sufixo}@teste.dev`, senha: 'senha12345' })).j.token;
-  assert.equal((await http('GET', `/api/bares/${bar.id}`, undefined, outro)).status, 404);
-  assert.equal((await http('GET', `/api/bares/${bar.id}/fila`, undefined, outro)).status, 404);
-  // token de sessão não serve como token de admin e vice-versa
-  assert.equal((await http('GET', '/api/bares', undefined, A)).status, 401);
-  assert.equal((await http('GET', `/api/public/bares/${slug}/catalogo`, undefined, admin)).status, 401);
+await passo('admin: login, papel e criação de responsável; sem cadastro público', async () => {
+  const l = await http('POST', '/api/auth/login', { email: 'admin@spotifybar.dev', senha: 'admin12345' });
+  assert.equal(l.status, 200);
+  assert.equal(l.j.usuario.papel, 'admin');
+  adm = l.j.token;
+  assert.equal((await http('POST', '/api/auth/registrar', { nome: 'Xy', email: `x-${sufixo}@t.dev`, senha: '12345678' })).status, 404);
+  const novo = await http('POST', '/api/admin/usuarios', { nome: 'Dono Dois', email: `dono2-${sufixo}@teste.dev`, senha: 'senha12345' }, adm);
+  assert.equal(novo.status, 201);
+  assert.equal(novo.j.papel, 'dono');
+  assert.equal((await http('POST', '/api/admin/usuarios', { nome: 'Dono Dois', email: `dono2-${sufixo}@teste.dev`, senha: 'senha12345' }, adm)).status, 409);
 });
 
-await passo('bar free: cadastro com lat/long, estilos, limite de catálogo e sem super chat', async () => {
-  const dono = (await http('POST', '/api/auth/registrar', { nome: 'Dono Free', email: `free-${sufixo}@teste.dev`, senha: 'senha12345' })).j.token;
-  const novo = await http('POST', '/api/bares', {
-    nome: 'Boteco Free', cidade: 'Campinas', uf: 'sp', latitude: -22.9, longitude: -47.06, estilos: ['Samba'],
-  }, dono);
-  assert.equal(novo.status, 201);
-  assert.equal(novo.j.plano_efetivo, 'free');
-  assert.equal(novo.j.uf, 'SP');
-  const id = novo.j.id;
-  // estilo fora do permitido
+let dono2 = '', donoId = '', bar2: any;
+await passo('permissões: dono só altera o catálogo; dados, Spotify, Pix e criação de bar são do administrador', async () => {
+  const l = await http('POST', '/api/auth/login', { email: `dono2-${sufixo}@teste.dev`, senha: 'senha12345' });
+  dono2 = l.j.token;
+  donoId = l.j.usuario.id;
+  const corpo = { nome: 'Boteco Free', cidade: 'Campinas', uf: 'sp', latitude: -22.9, longitude: -47.06, estilos: ['Samba'], usuario_id: donoId };
+  assert.equal((await http('POST', '/api/bares', corpo, dono2)).status, 403, 'dono não cria bar');
+  const criado = await http('POST', '/api/bares', corpo, adm);
+  assert.equal(criado.status, 201);
+  bar2 = criado.j;
+  assert.equal(bar2.plano_efetivo, 'free');
+  assert.equal(bar2.situacao, 'gratuito');
+  assert.equal(bar2.uf, 'SP');
+  assert.equal((await http('PUT', `/api/bares/${bar2.id}`, corpo, dono2)).status, 403);
+  assert.equal((await http('PUT', `/api/bares/${bar2.id}/pix`, { pix_provider: 'estatico', pix_chave: 'a@b.com' }, dono2)).status, 403);
+  assert.equal((await http('PUT', `/api/bares/${bar2.id}/spotify`, { conta_id: null, device_id: null }, dono2)).status, 403);
+  assert.equal((await http('GET', '/api/spotify/contas', undefined, dono2)).status, 403);
+  assert.equal((await http('POST', `/api/bares/${bar2.id}/qr/regenerar`, undefined, dono2)).status, 403);
+  assert.equal((await http('GET', '/api/admin/bares', undefined, dono2)).status, 403);
+  // o dono enxerga só o próprio bar e edita o catálogo
+  const meus = (await http('GET', '/api/bares', undefined, dono2)).j;
+  assert.deepEqual(meus.map((b: any) => b.id), [bar2.id]);
+  assert.equal((await http('GET', `/api/bares/${bar.id}`, undefined, dono2)).status, 404, 'bar de outro dono');
+  assert.equal((await http('GET', `/api/bares/${bar.id}/fila`, undefined, dono2)).status, 404);
   const base = { spotify_track_id: 'x1', uri: 'spotify:track:x1', nome: 'Música', artistas: 'Artista', duracao_ms: 1000 };
-  assert.equal((await http('POST', `/api/bares/${id}/catalogo`, { ...base, estilo: 'Funk' }, dono)).status, 400);
-  assert.equal((await http('POST', `/api/bares/${id}/catalogo`, { ...base, estilo: 'Samba' }, dono)).status, 201);
-  for (let i = 2; i <= 30; i++) await http('POST', `/api/bares/${id}/catalogo`, { ...base, spotify_track_id: `x${i}`, uri: `spotify:track:x${i}`, estilo: 'Samba' }, dono);
-  assert.equal((await http('POST', `/api/bares/${id}/catalogo`, { ...base, spotify_track_id: 'x31', uri: 'spotify:track:x31', estilo: 'Samba' }, dono)).status, 402);
-  // assinatura gera Pix e ativa o plano
-  const ass = await http('POST', `/api/bares/${id}/assinar`, { plano: 'semestral' }, dono);
+  assert.equal((await http('POST', `/api/bares/${bar2.id}/catalogo`, { ...base, estilo: 'Funk' }, dono2)).status, 400, 'estilo fora do permitido');
+  assert.equal((await http('POST', `/api/bares/${bar2.id}/catalogo`, { ...base, estilo: 'Samba' }, dono2)).status, 201);
+  for (let i = 2; i <= 30; i++) await http('POST', `/api/bares/${bar2.id}/catalogo`, { ...base, spotify_track_id: `x${i}`, uri: `spotify:track:x${i}`, estilo: 'Samba' }, dono2);
+  assert.equal((await http('POST', `/api/bares/${bar2.id}/catalogo`, { ...base, spotify_track_id: 'x31', uri: 'spotify:track:x31', estilo: 'Samba' }, dono2)).status, 402);
+  // token de sessão não serve como token de admin e vice-versa
+  assert.equal((await http('GET', '/api/bares', undefined, A)).status, 401);
+  assert.equal((await http('GET', `/api/public/bares/${slug}/catalogo`, undefined, adm)).status, 401);
+});
+
+await passo('cobrança: mensalidade em dinheiro com próximo vencimento, situação, assinatura por Pix e bloqueio', async () => {
+  const em3dias = new Date(Date.now() + 3 * 86400000).toISOString().slice(0, 10);
+  assert.equal((await http('POST', `/api/admin/bares/${bar2.id}/mensalidades`, { plano: 'mensal', forma: 'dinheiro' }, dono2)).status, 403);
+  assert.equal((await http('POST', `/api/admin/bares/${bar2.id}/mensalidades`, { plano: 'mensal', forma: 'cheque' }, adm)).status, 400);
+  assert.equal((await http('POST', `/api/admin/bares/${bar2.id}/mensalidades`, { plano: 'mensal', forma: 'dinheiro', proximo_vencimento: '2020-01-01' }, adm)).status, 400, 'vencimento no passado');
+  const r = await http('POST', `/api/admin/bares/${bar2.id}/mensalidades`, { plano: 'mensal', forma: 'dinheiro', proximo_vencimento: em3dias, observacao: 'recibo 12' }, adm);
+  assert.equal(r.status, 201);
+  assert.equal(r.j.bar.plano_efetivo, 'mensal');
+  assert.equal(r.j.bar.situacao, 'vence_em_breve');
+  assert.ok(r.j.bar.dias_para_vencer >= 3 && r.j.bar.dias_para_vencer <= 4);
+  // renovação sem data: soma 30 dias ao vencimento atual e fica em dia
+  const r2 = await http('POST', `/api/admin/bares/${bar2.id}/mensalidades`, { plano: 'mensal', forma: 'pix' }, adm);
+  assert.equal(r2.j.bar.situacao, 'em_dia');
+  assert.ok(r2.j.bar.dias_para_vencer >= 32);
+  // assinatura online (Pix simulado) também entra como forma pix
+  const ass = await http('POST', `/api/bares/${bar2.id}/assinar`, { plano: 'semestral' }, dono2);
   assert.equal(ass.j.valor_centavos, 100000);
   await http('POST', `/api/pagamentos/${ass.j.id}/simular`);
-  const depois = (await http('GET', `/api/bares/${id}`, undefined, dono)).j;
-  assert.equal(depois.plano_efetivo, 'semestral');
-  assert.ok(new Date(depois.plano_expira_em).getTime() > Date.now() + 170 * 86400000);
-  assert.equal((await http('POST', `/api/bares/${id}/catalogo`, { ...base, spotify_track_id: 'x31', uri: 'spotify:track:x31', estilo: 'Samba' }, dono)).status, 201);
+  assert.equal((await http('GET', `/api/bares/${bar2.id}`, undefined, dono2)).j.plano_efetivo, 'semestral');
+
+  // bloquear: o bar some para o público e o dono vê o bloqueio
+  const lista = (await http('GET', '/api/admin/bares', undefined, adm)).j.find((b: any) => b.id === bar2.id);
+  assert.equal(lista.ultimo_pagamento.forma, 'pix');
+  assert.equal((await http('POST', `/api/admin/bares/${bar2.id}/bloquear`, { motivo: 'Mensalidade em atraso' }, dono2)).status, 403);
+  const bl = await http('POST', `/api/admin/bares/${bar2.id}/bloquear`, { motivo: 'Mensalidade em atraso' }, adm);
+  assert.equal(bl.j.situacao, 'bloqueado');
+  assert.equal((await http('GET', `/api/public/bares/${bar2.slug}/estado`)).status, 403);
+  assert.equal((await http('POST', `/api/public/bares/${bar2.slug}/entrar`, { q: bar2.qr_token })).status, 403);
+  const prox = (await http('GET', `/api/public/bares/proximos?lat=-22.9&lng=-47.06&km=5`)).j;
+  assert.ok(!prox.some((b: any) => b.slug === bar2.slug), 'bloqueado não aparece na busca por GPS');
+  assert.equal((await http('GET', `/api/bares/${bar2.id}`, undefined, dono2)).j.bloqueado, true);
+  // registrar pagamento desbloqueia
+  const pg = await http('POST', `/api/admin/bares/${bar2.id}/mensalidades`, { plano: 'mensal', forma: 'dinheiro' }, adm);
+  assert.equal(pg.j.bar.bloqueado, false);
+  assert.equal((await http('GET', `/api/public/bares/${bar2.slug}/estado`)).status, 200);
+  assert.equal((await http('POST', `/api/admin/bares/${bar2.id}/bloquear`, {}, adm)).j.bloqueado, true);
+  assert.equal((await http('POST', `/api/admin/bares/${bar2.id}/desbloquear`, undefined, adm)).j.bloqueado, false);
+});
+
+await passo('pagamentos: administrador vê todos; dono vê só os do seu bar; totais por forma', async () => {
+  const todos = await http('GET', '/api/admin/pagamentos', undefined, adm);
+  assert.equal(todos.status, 200);
+  assert.ok(todos.j.itens.some((p: any) => p.bar_id === bar.id && p.tipo === 'superchat'));
+  assert.ok(todos.j.itens.some((p: any) => p.bar_id === bar2.id && p.tipo === 'assinatura'));
+  assert.equal((await http('GET', '/api/admin/pagamentos', undefined, dono2)).status, 403);
+  const formas = (await http('GET', '/api/admin/pagamentos?tipo=assinatura', undefined, adm)).j.totais.map((t: any) => t.forma);
+  assert.ok(formas.includes('dinheiro') && formas.includes('pix'));
+  const so = await http('GET', `/api/admin/pagamentos?forma=dinheiro&tipo=assinatura&bar_id=${bar2.id}`, undefined, adm);
+  assert.ok(so.j.itens.length >= 2 && so.j.itens.every((p: any) => p.forma === 'dinheiro'));
+  const meus = (await http('GET', `/api/bares/${bar2.id}/pagamentos`, undefined, dono2)).j;
+  assert.ok(meus.itens.length >= 3 && meus.itens.every((p: any) => p.bar_id === bar2.id));
+  assert.equal((await http('GET', `/api/bares/${bar.id}/pagamentos`, undefined, dono2)).status, 404);
+  // super chat confirmado manualmente pelo bar, informando como recebeu
+  const alvo = musica('Garota de Ipanema');
+  const sp = await http('POST', `/api/public/bares/${slug}/superchat`, { catalogo_id: alvo.id }, B);
+  assert.equal(sp.status, 201);
+  const conf = await http('POST', `/api/bares/${bar.id}/pagamentos/${sp.j.id}/confirmar`, { forma: 'dinheiro' }, admin);
+  assert.equal(conf.j.forma, 'dinheiro');
+  assert.equal(conf.j.status, 'pago');
+});
+
+await passo('estatísticas: pedidos, mais pedidas, por bar e período', async () => {
+  const e = (await http('GET', `/api/bares/${bar.id}/estatisticas`, undefined, admin)).j;
+  assert.ok(e.resumo.pedidos >= 5 && e.resumo.tocadas >= 1 && e.resumo.superchats >= 2);
+  assert.ok(e.top.length > 0 && e.top[0].pedidos >= e.top[e.top.length - 1].pedidos);
+  assert.ok(e.top.some((t: any) => t.nome === 'Three Little Birds' && t.superchats >= 1));
+  assert.ok(e.por_dia.length >= 1);
+  const geral = (await http('GET', '/api/admin/estatisticas', undefined, adm)).j;
+  assert.ok(geral.por_bar.some((b: any) => b.id === bar.id));
+  assert.equal((await http('GET', '/api/admin/estatisticas', undefined, dono2)).status, 403);
+  assert.equal((await http('GET', `/api/bares/${bar.id}/estatisticas`, undefined, dono2)).status, 404);
+  const futuro = (await http('GET', `/api/bares/${bar.id}/estatisticas?de=2999-01-01`, undefined, admin)).j;
+  assert.equal(futuro.resumo.pedidos, 0);
 });
 
 console.log(falhas ? `\n${falhas} falha(s)` : '\nTodos os passos passaram');

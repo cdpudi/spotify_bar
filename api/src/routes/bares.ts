@@ -3,9 +3,10 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { config } from '../config.js';
 import { q, q1 } from '../db.js';
-import { barDoUsuario, barParaPainel, ESTILOS_SUGERIDOS, slugificar } from '../lib/bares.js';
+import { barDoUsuario, barParaPainel, ehAdmin, ESTILOS_SUGERIDOS, slugificar } from '../lib/bares.js';
 import { ErroHttp } from '../lib/erros.js';
 import { PLANOS } from '../lib/planos.js';
+import { estatisticas } from '../lib/estatisticas.js';
 import { cifrar, tokenAleatorio } from '../lib/seguranca.js';
 import { notificar } from '../realtime.js';
 import { ErroSpotify, spotify, tokenDaConta } from '../spotify/index.js';
@@ -38,23 +39,31 @@ const urlDoBar = (b: { slug: string; qr_token: string }) => `${config.urlPublica
 
 export async function rotasBares(app: FastifyInstance) {
   const auth = { preHandler: app.exigirUsuario };
+  const admin = { preHandler: app.exigirAdmin };
 
   app.get('/api/estilos', async () => ESTILOS_SUGERIDOS);
   app.get('/api/planos', async () => Object.values(PLANOS));
 
   app.get('/api/bares', auth, async (req) => {
-    const bares = await q('select * from bares where usuario_id=$1 order by criado_em', [req.user.sub]);
+    const todos = await ehAdmin(req.user.sub);
+    const bares = await q(
+      `select b.*, u.nome as usuario_nome, u.email as usuario_email from bares b join usuarios u on u.id = b.usuario_id
+        ${todos ? '' : 'where b.usuario_id = $1'} order by b.criado_em`,
+      todos ? [] : [req.user.sub],
+    );
     return bares.map(barParaPainel);
   });
 
-  app.post('/api/bares', auth, async (req, reply) => {
-    const d = dadosBar.parse(req.body);
+  app.post('/api/bares', admin, async (req, reply) => {
+    const d = dadosBar.extend({ usuario_id: z.string().uuid('Escolha o responsável pelo bar') }).parse(req.body);
+    const dono = await q1("select id from usuarios where id=$1 and ativo", [d.usuario_id]);
+    if (!dono) throw new ErroHttp(404, 'Responsável não encontrado');
     const slug = `${slugificar(d.nome)}-${randomBytes(2).toString('hex')}`;
     const bar = await q1(
       `insert into bares (usuario_id,nome,slug,cnpj,telefone,email,cep,logradouro,numero,complemento,bairro,cidade,uf,
          latitude,longitude,raio_metros,qr_token,estilos,max_pedidos_por_sessao,cooldown_repeticao_min,superchat_valor_centavos,ativo)
        values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22) returning *`,
-      [req.user.sub, d.nome, slug, d.cnpj, d.telefone, d.email, d.cep, d.logradouro, d.numero, d.complemento, d.bairro, d.cidade, d.uf,
+      [d.usuario_id, d.nome, slug, d.cnpj, d.telefone, d.email, d.cep, d.logradouro, d.numero, d.complemento, d.bairro, d.cidade, d.uf,
         d.latitude, d.longitude, d.raio_metros, tokenAleatorio(12), d.estilos, d.max_pedidos_por_sessao, d.cooldown_repeticao_min,
         d.superchat_valor_centavos, d.ativo],
     );
@@ -66,10 +75,11 @@ export async function rotasBares(app: FastifyInstance) {
     return barParaPainel(await barDoUsuario(id, req.user.sub));
   });
 
-  app.put('/api/bares/:id', auth, async (req) => {
+  app.put('/api/bares/:id', admin, async (req) => {
     const { id } = req.params as { id: string };
     await barDoUsuario(id, req.user.sub);
-    const d = dadosBar.parse(req.body);
+    const d = dadosBar.extend({ usuario_id: z.string().uuid().optional() }).parse(req.body);
+    if (d.usuario_id) await q('update bares set usuario_id=$2 where id=$1', [id, d.usuario_id]);
     const bar = await q1(
       `update bares set nome=$2,cnpj=$3,telefone=$4,email=$5,cep=$6,logradouro=$7,numero=$8,complemento=$9,bairro=$10,cidade=$11,uf=$12,
          latitude=$13,longitude=$14,raio_metros=$15,estilos=$16,max_pedidos_por_sessao=$17,cooldown_repeticao_min=$18,
@@ -82,7 +92,7 @@ export async function rotasBares(app: FastifyInstance) {
   });
 
   // Recebimento do super chat
-  app.put('/api/bares/:id/pix', auth, async (req) => {
+  app.put('/api/bares/:id/pix', admin, async (req) => {
     const { id } = req.params as { id: string };
     await barDoUsuario(id, req.user.sub);
     const d = z
@@ -109,7 +119,7 @@ export async function rotasBares(app: FastifyInstance) {
     const bar = await barDoUsuario((req.params as any).id, req.user.sub);
     return { url: urlDoBar(bar), url_sem_qr: `${config.urlPublica}/b/${bar.slug}` };
   });
-  app.post('/api/bares/:id/qr/regenerar', auth, async (req) => {
+  app.post('/api/bares/:id/qr/regenerar', admin, async (req) => {
     const { id } = req.params as { id: string };
     await barDoUsuario(id, req.user.sub);
     const bar = await q1('update bares set qr_token=$2 where id=$1 returning *', [id, tokenAleatorio(12)]);
@@ -117,14 +127,14 @@ export async function rotasBares(app: FastifyInstance) {
   });
 
   // Conta + dispositivo Spotify do bar
-  app.put('/api/bares/:id/spotify', auth, async (req) => {
+  app.put('/api/bares/:id/spotify', admin, async (req) => {
     const { id } = req.params as { id: string };
     await barDoUsuario(id, req.user.sub);
     const d = z
       .object({ conta_id: z.string().uuid().nullable(), device_id: z.string().min(1).nullable(), device_nome: z.string().nullable().optional() })
       .parse(req.body);
     if (d.conta_id) {
-      const conta = await q1('select id from spotify_contas where id=$1 and usuario_id=$2', [d.conta_id, req.user.sub]);
+      const conta = await q1('select id from spotify_contas where id=$1', [d.conta_id]);
       if (!conta) throw new ErroHttp(404, 'Conta Spotify não encontrada');
       if (!d.device_id) throw new ErroHttp(400, 'Selecione um dispositivo');
       const uso = await q1('select nome from bares where spotify_device_id=$1 and id<>$2', [d.device_id, id]);
@@ -144,6 +154,13 @@ export async function rotasBares(app: FastifyInstance) {
     await q('delete from player_estado where bar_id=$1', [id]);
     notificar(id);
     return barParaPainel(bar);
+  });
+
+  // Estatísticas de pedidos (dono e administrador)
+  app.get('/api/bares/:id/estatisticas', auth, async (req) => {
+    const bar = await barDoUsuario((req.params as any).id, req.user.sub);
+    const { de, ate } = req.query as { de?: string; ate?: string };
+    return estatisticas({ barId: bar.id, de, ate });
   });
 
   // Painel: fila completa e controles do player

@@ -32,6 +32,8 @@ services:
       PORT: "3002"
       DATABASE_URL: postgres://spotifybar:${DB_PASSWORD}@db:5432/spotifybar
       JWT_SECRET: ${JWT_SECRET:?Defina JWT_SECRET}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:?Defina ADMIN_EMAIL}
+      ADMIN_SENHA: ${ADMIN_SENHA:?Defina ADMIN_SENHA}
       ENCRYPTION_KEY: ${ENCRYPTION_KEY:?Defina ENCRYPTION_KEY}
       PUBLIC_URL: ${PUBLIC_URL:-https://spotify-bar.umg.com.br}
       API_URL: ${PUBLIC_URL:-https://spotify-bar.umg.com.br}

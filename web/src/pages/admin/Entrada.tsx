@@ -6,9 +6,7 @@ import { mensagemErro } from '../../lib/api';
 import { useAuth } from '../../lib/auth';
 
 export default function Entrada() {
-  const { token, entrar, registrar } = useAuth();
-  const [modo, setModo] = useState<'entrar' | 'criar'>('entrar');
-  const [nome, setNome] = useState('');
+  const { token, entrar } = useAuth();
   const [email, setEmail] = useState('');
   const [senha, setSenha] = useState('');
   const [erro, setErro] = useState<string | null>(null);
@@ -21,8 +19,7 @@ export default function Entrada() {
     setErro(null);
     setEnviando(true);
     try {
-      if (modo === 'entrar') await entrar(email, senha);
-      else await registrar(nome, email, senha);
+      await entrar(email, senha);
     } catch (e) {
       setErro(mensagemErro(e));
     } finally {
@@ -44,26 +41,16 @@ export default function Entrada() {
       <main className="flex items-center justify-center px-5 py-10">
         <form onSubmit={enviar} className="w-full max-w-sm space-y-4">
           <Logo className="mb-2 text-lg lg:hidden" />
-          <h1 className="text-2xl font-extrabold">{modo === 'entrar' ? 'Entrar no painel do bar' : 'Criar conta do bar'}</h1>
-          {modo === 'criar' && (
-            <Campo rotulo="Seu nome">
-              <Input value={nome} onChange={(e) => setNome(e.target.value)} required minLength={2} autoComplete="name" />
-            </Campo>
-          )}
+          <h1 className="text-2xl font-extrabold">Entrar no painel</h1>
           <Campo rotulo="E-mail">
             <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required autoComplete="email" />
           </Campo>
-          <Campo rotulo="Senha" dica={modo === 'criar' ? 'Mínimo de 8 caracteres' : undefined}>
-            <Input type="password" value={senha} onChange={(e) => setSenha(e.target.value)} required minLength={modo === 'criar' ? 8 : 1} autoComplete={modo === 'entrar' ? 'current-password' : 'new-password'} />
+          <Campo rotulo="Senha">
+            <Input type="password" value={senha} onChange={(e) => setSenha(e.target.value)} required autoComplete="current-password" />
           </Campo>
           {erro && <Aviso tipo="erro">{erro}</Aviso>}
-          <Botao className="w-full" tamanho="lg" carregando={enviando}>{modo === 'entrar' ? 'Entrar' : 'Criar conta'}</Botao>
-          <p className="text-center text-sm text-muted">
-            {modo === 'entrar' ? 'Ainda não tem conta?' : 'Já tem conta?'}{' '}
-            <button type="button" className="font-bold text-white underline-offset-2 hover:underline" onClick={() => { setModo(modo === 'entrar' ? 'criar' : 'entrar'); setErro(null); }}>
-              {modo === 'entrar' ? 'Cadastre seu bar' : 'Entrar'}
-            </button>
-          </p>
+          <Botao className="w-full" tamanho="lg" carregando={enviando}>Entrar</Botao>
+          <p className="text-center text-xs text-faint">Não tem acesso? Peça o cadastro do seu bar ao administrador da plataforma.</p>
           <p className="text-center text-sm"><Link to="/" className="text-faint hover:text-white">← Voltar para a página inicial</Link></p>
         </form>
       </main>

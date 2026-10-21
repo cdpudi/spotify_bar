@@ -5,13 +5,14 @@ interface Usuario {
   id: string;
   nome: string;
   email: string;
+  papel: 'admin' | 'dono';
 }
 interface Ctx {
   token: string | null;
   usuario: Usuario | null;
   carregando: boolean;
   entrar(email: string, senha: string): Promise<void>;
-  registrar(nome: string, email: string, senha: string): Promise<void>;
+  ehAdmin: boolean;
   sair(): void;
   /** chamada autenticada; derruba a sessão em 401 */
   req<T = any>(metodo: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE', caminho: string, corpo?: unknown): Promise<T>;
@@ -71,10 +72,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const r = await api('POST', '/api/auth/login', { email, senha });
         guardar(r.token, r.usuario);
       },
-      async registrar(nome, email, senha) {
-        const r = await api('POST', '/api/auth/registrar', { nome, email, senha });
-        guardar(r.token, r.usuario);
-      },
+      ehAdmin: usuario?.papel === 'admin',
       sair,
       async req(metodo, caminho, corpo) {
         try {

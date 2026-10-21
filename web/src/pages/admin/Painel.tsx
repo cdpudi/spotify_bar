@@ -14,7 +14,7 @@ interface EstadoPainel extends EstadoSala {
 }
 
 export default function Painel() {
-  const { req } = useAuth();
+  const { req, ehAdmin } = useAuth();
   const { bares, bar } = useBar();
   const [e, setE] = useState<EstadoPainel | null>(null);
   const [skew, setSkew] = useState(0);
@@ -48,7 +48,8 @@ export default function Painel() {
 
   const prog = useProgresso(e?.tocando ?? null, skew);
 
-  if (bares && bares.length === 0) return <Navigate to="/admin/bar/novo" replace />;
+  if (bares && bares.length === 0 && ehAdmin) return <Navigate to="/admin/bar/novo" replace />;
+  if (bares && bares.length === 0) return <Aviso tipo="ouro">Seu bar ainda não foi cadastrado. Peça ao administrador da plataforma.</Aviso>;
   if (!bar) return null;
 
   const rodar = async (fn: () => Promise<unknown>, ok?: string) => {
@@ -63,9 +64,9 @@ export default function Painel() {
   const player = (acao: 'pausar' | 'retomar' | 'pular') => rodar(() => req('POST', `/api/bares/${bar.id}/player/${acao}`));
 
   const pendencias = [
-    !bar.spotify_conta_id || !bar.spotify_device_id ? { texto: 'Conecte uma conta Spotify e escolha o dispositivo do bar.', para: '/admin/spotify' } : null,
-    catalogoQtd === 0 ? { texto: 'Seu catálogo está vazio — ninguém consegue pedir música.', para: '/admin/catalogo' } : null,
-    bar.plano_efetivo !== 'free' && bar.pix_provider === 'estatico' && !bar.pix_chave ? { texto: 'Cadastre a chave Pix para receber os super chats.', para: '/admin/pix' } : null,
+    !bar.spotify_conta_id || !bar.spotify_device_id ? { texto: ehAdmin ? 'Conecte uma conta Spotify e escolha o dispositivo do bar.' : 'O player do bar ainda não foi configurado. Fale com o administrador.', para: ehAdmin ? '/admin/spotify' : '' } : null,
+    catalogoQtd === 0 ? { texto: 'O catálogo está vazio — ninguém consegue pedir música.', para: '/admin/catalogo' } : null,
+    bar.plano_efetivo !== 'free' && bar.pix_provider === 'estatico' && !bar.pix_chave ? { texto: ehAdmin ? 'Cadastre a chave Pix para receber os super chats.' : 'A chave Pix para super chats ainda não foi cadastrada. Fale com o administrador.', para: ehAdmin ? '/admin/pix' : '' } : null,
   ].filter(Boolean) as { texto: string; para: string }[];
 
   const t = e?.tocando;
@@ -81,12 +82,24 @@ export default function Painel() {
         </a>
       </div>
 
+      {bar.bloqueado && (
+        <Aviso tipo="erro"><b>Bar bloqueado.</b> {bar.motivo_bloqueio ?? 'Pagamento em atraso.'} O público não consegue entrar e a música está parada. Regularize o pagamento com o administrador da plataforma.</Aviso>
+      )}
+      {!bar.bloqueado && bar.situacao === 'vencido' && <Aviso tipo="erro"><b>Mensalidade vencida</b> em {new Date(bar.plano_expira_em!).toLocaleDateString('pt-BR')}. O super chat está desativado e o bar pode ser bloqueado.</Aviso>}
+      {!bar.bloqueado && bar.situacao === 'vence_em_breve' && <Aviso tipo="ouro">Sua mensalidade vence em {bar.dias_para_vencer} dia(s) ({new Date(bar.plano_expira_em!).toLocaleDateString('pt-BR')}).</Aviso>}
+
       {pendencias.length > 0 && (
         <div className="space-y-2">
           {pendencias.map((p) => (
-            <Link key={p.para} to={p.para} className="flex items-center gap-3 rounded-lg border border-gold/40 bg-gold/10 px-3 py-2.5 text-sm text-gold hover:bg-gold/15">
-              <AlertTriangle className="size-4 shrink-0" /> {p.texto}
-            </Link>
+            p.para ? (
+              <Link key={p.texto} to={p.para} className="flex items-center gap-3 rounded-lg border border-gold/40 bg-gold/10 px-3 py-2.5 text-sm text-gold hover:bg-gold/15">
+                <AlertTriangle className="size-4 shrink-0" /> {p.texto}
+              </Link>
+            ) : (
+              <div key={p.texto} className="flex items-center gap-3 rounded-lg border border-gold/40 bg-gold/10 px-3 py-2.5 text-sm text-gold">
+                <AlertTriangle className="size-4 shrink-0" /> {p.texto}
+              </div>
+            )
           ))}
         </div>
       )}

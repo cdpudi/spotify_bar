@@ -7,7 +7,7 @@ import { useAuth } from '../../lib/auth';
 import { useBar } from './contexto';
 
 export default function QrCodeBar() {
-  const { req } = useAuth();
+  const { req, ehAdmin } = useAuth();
   const { bar } = useBar();
   const [url, setUrl] = useState<string | null>(null);
   const [img, setImg] = useState<string | null>(null);
@@ -62,7 +62,7 @@ export default function QrCodeBar() {
         <Botao onClick={() => window.print()}><Printer className="size-4" /> Imprimir</Botao>
         <Botao variante="secundario" onClick={baixar} disabled={!img}><Download className="size-4" /> Baixar PNG</Botao>
         <Botao variante="secundario" onClick={() => url && navigator.clipboard.writeText(url).then(() => setMsg({ tipo: 'ok', texto: 'Link copiado.' }))} disabled={!url}><Copy className="size-4" /> Copiar link</Botao>
-        <Botao variante="perigo" onClick={regenerar}><RefreshCw className="size-4" /> Gerar novo</Botao>
+        {ehAdmin && <Botao variante="perigo" onClick={regenerar}><RefreshCw className="size-4" /> Gerar novo</Botao>}
       </div>
       {url && <p className="break-all text-center text-xs text-faint print:hidden">{url}</p>}
     </div>

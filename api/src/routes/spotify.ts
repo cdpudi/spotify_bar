@@ -2,37 +2,26 @@ import type { FastifyInstance } from 'fastify';
 import { config } from '../config.js';
 import { q, q1 } from '../db.js';
 import { ErroHttp } from '../lib/erros.js';
-import { PLANOS, planoEfetivo } from '../lib/planos.js';
 import { cifrar } from '../lib/seguranca.js';
 import { ErroSpotify, spotify, tokenDaConta } from '../spotify/index.js';
 
 const contaPublica = `id, spotify_user_id, nome, email, produto, criado_em`;
 
-async function limiteDeContas(usuarioId: string): Promise<number> {
-  const bares = await q('select plano, plano_expira_em from bares where usuario_id=$1', [usuarioId]);
-  return Math.max(PLANOS.free.contasSpotifyMax, ...bares.map((b: any) => planoEfetivo(b.plano, b.plano_expira_em).contasSpotifyMax));
-}
-
 export async function rotasSpotify(app: FastifyInstance) {
-  const auth = { preHandler: app.exigirUsuario };
+  const auth = { preHandler: app.exigirAdmin };
 
   app.get('/api/spotify/contas', auth, async (req) => {
     const contas = await q(
       `select ${contaPublica}, (select count(*)::int from bares b where b.spotify_conta_id = c.id) as bares_usando
-         from spotify_contas c where usuario_id=$1 order by criado_em`,
-      [req.user.sub],
+         from spotify_contas c order by criado_em`,
     );
-    return { modo: spotify.modo, limite: await limiteDeContas(req.user.sub), contas };
+    return { modo: spotify.modo, contas };
   });
 
   // Inicia o OAuth: devolve a URL de autorização do Spotify
   app.get('/api/spotify/conectar', auth, async (req) => {
     if (spotify.modo === 'real' && (!config.spotify.clientId || !config.spotify.clientSecret)) {
       throw new ErroHttp(503, 'Integração Spotify não configurada no servidor (SPOTIFY_CLIENT_ID / SPOTIFY_CLIENT_SECRET)');
-    }
-    const total = (await q1('select count(*)::int as n from spotify_contas where usuario_id=$1', [req.user.sub]))!.n;
-    if (total >= (await limiteDeContas(req.user.sub))) {
-      throw new ErroHttp(402, 'Limite de contas Spotify do seu plano atingido. Assine um plano para conectar mais contas.');
     }
     const state = app.jwt.sign({ tipo: 'spotify', sub: req.user.sub }, { expiresIn: '10m' });
     return { url: spotify.urlAutorizacao(state) };
@@ -73,17 +62,17 @@ export async function rotasSpotify(app: FastifyInstance) {
   app.delete('/api/spotify/contas/:id', auth, async (req) => {
     const { id } = req.params as { id: string };
     const r = await q(
-      `update bares set spotify_conta_id=null, spotify_device_id=null, spotify_device_nome=null where spotify_conta_id=$1 and usuario_id=$2 returning id`,
-      [id, req.user.sub],
+      `update bares set spotify_conta_id=null, spotify_device_id=null, spotify_device_nome=null where spotify_conta_id=$1 returning id`,
+      [id],
     );
-    await q('delete from spotify_contas where id=$1 and usuario_id=$2', [id, req.user.sub]);
+    await q('delete from spotify_contas where id=$1', [id]);
     return { ok: true, bares_desvinculados: r.length };
   });
 
   // Lista os dispositivos que a conta enxerga agora (apps do Spotify abertos)
   app.get('/api/spotify/contas/:id/dispositivos', auth, async (req) => {
     const { id } = req.params as { id: string };
-    if (!(await q1('select 1 from spotify_contas where id=$1 and usuario_id=$2', [id, req.user.sub]))) {
+    if (!(await q1('select 1 from spotify_contas where id=$1', [id]))) {
       throw new ErroHttp(404, 'Conta não encontrada');
     }
     try {

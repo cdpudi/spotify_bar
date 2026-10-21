@@ -143,13 +143,22 @@ async function consultarProvider(p: any): Promise<StatusPix> {
 }
 
 /** Marca como pago e aplica o efeito (fila ou plano). Idempotente. */
-export async function confirmarPagamento(id: string): Promise<any> {
+export interface OpcoesConfirmacao {
+  forma?: string;
+  registradoPor?: string;
+  observacao?: string;
+}
+
+export async function confirmarPagamento(id: string, op: OpcoesConfirmacao = {}): Promise<any> {
   const efeito = await transacao(async (c) => {
     const { rows } = await c.query('select * from pagamentos where id=$1 for update', [id]);
     const p = rows[0];
     if (!p || p.status === 'pago') return { p, aplicado: false };
     if (p.status !== 'pendente') throw new Error(`Pagamento ${p.status}, não pode ser confirmado`);
-    await c.query(`update pagamentos set status='pago', pago_em=now() where id=$1`, [id]);
+    await c.query(
+      `update pagamentos set status='pago', pago_em=now(), forma=coalesce($2, forma), registrado_por=coalesce($3, registrado_por), observacao=coalesce($4, observacao) where id=$1`,
+      [id, op.forma ?? null, op.registradoPor ?? null, op.observacao ?? null],
+    );
 
     if (p.tipo === 'superchat' && p.fila_id) {
       const { rows: fr } = await c.query('select * from fila where id=$1 for update', [p.fila_id]);
@@ -170,18 +179,53 @@ export async function confirmarPagamento(id: string): Promise<any> {
     }
     if (p.tipo === 'assinatura' && p.plano) {
       const pl = PLANOS[p.plano as PlanoId];
-      await c.query(
+      const { rows: br } = await c.query(
         `update bares set plano=$2,
            plano_expira_em = (case when plano=$2 and plano_expira_em > now() then plano_expira_em else now() end) + make_interval(days => $3),
-           atualizado_em=now()
-         where id=$1`,
+           bloqueado=false, bloqueado_em=null, motivo_bloqueio=null, atualizado_em=now()
+         where id=$1 returning plano_expira_em`,
         [p.bar_id, p.plano, pl.dias],
       );
+      await c.query(`update pagamentos set referencia_fim=$2::timestamptz, referencia_inicio=$2::timestamptz - make_interval(days => $3) where id=$1`, [id, br[0].plano_expira_em, pl.dias]);
     }
     return { p, aplicado: true };
   });
   if (efeito.p && efeito.aplicado) notificar(efeito.p.bar_id);
   return q1('select * from pagamentos where id=$1', [id]);
+}
+
+/** Lançamento manual de mensalidade pelo administrador (pix, dinheiro...). Estende o vencimento e desbloqueia. */
+export async function registrarMensalidadeManual(p: {
+  barId: string;
+  plano: PlanoId;
+  forma: string;
+  valorCentavos?: number;
+  pagoEm?: string | null;
+  proximoVencimento?: string | null;
+  observacao?: string | null;
+  adminId: string;
+}) {
+  const pl = PLANOS[p.plano];
+  const id = randomUUID();
+  return transacao(async (c) => {
+    const { rows } = await c.query('select plano, plano_expira_em from bares where id=$1 for update', [p.barId]);
+    const bar = rows[0];
+    if (!bar) throw new Error('Bar não encontrado');
+    const vigente = bar.plano === p.plano && bar.plano_expira_em && new Date(bar.plano_expira_em) > new Date();
+    const inicio: Date = vigente ? new Date(bar.plano_expira_em) : new Date();
+    const fim: Date = p.proximoVencimento ? new Date(`${p.proximoVencimento}T23:59:59-03:00`) : new Date(inicio.getTime() + pl.dias * 86_400_000);
+    if (fim.getTime() <= Date.now()) throw new Error('O próximo vencimento precisa ser uma data futura');
+    await c.query(
+      `insert into pagamentos (id, tipo, bar_id, plano, valor_centavos, provider, txid, brcode, status, expira_em, pago_em, forma, observacao, registrado_por, referencia_inicio, referencia_fim)
+       values ($1,'assinatura',$2,$3,$4,'manual',$5,'','pago', now(), coalesce($6::timestamptz, now()), $7,$8,$9,$10,$11)`,
+      [id, p.barId, p.plano, p.valorCentavos ?? pl.valorCentavos, id.replace(/-/g, '').slice(0, 25), p.pagoEm ? `${p.pagoEm}T12:00:00-03:00` : null, p.forma, p.observacao ?? null, p.adminId, inicio, fim],
+    );
+    await c.query(
+      `update bares set plano=$2, plano_expira_em=$3, bloqueado=false, bloqueado_em=null, motivo_bloqueio=null, atualizado_em=now() where id=$1`,
+      [p.barId, p.plano, fim],
+    );
+    return id;
+  });
 }
 
 /** Estado atual de um pagamento, consultando o PSP quando necessário e expirando os vencidos. */

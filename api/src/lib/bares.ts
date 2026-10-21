@@ -1,4 +1,5 @@
 import { q1 } from '../db.js';
+import { situacaoCobranca } from './cobranca.js';
 import { ErroHttp } from './erros.js';
 import { planoEfetivo } from './planos.js';
 
@@ -7,9 +8,17 @@ export const ESTILOS_SUGERIDOS = [
   'Forró', 'Axé', 'Eletrônica', 'Rap / Hip-hop', 'Reggae', 'Jazz / Blues', 'Gospel', 'Clássicos', 'Flashback',
 ];
 
-/** Carrega um bar garantindo que pertence ao usuário logado. */
+export async function ehAdmin(usuarioId: string): Promise<boolean> {
+  const u = await q1('select papel, ativo from usuarios where id=$1', [usuarioId]);
+  return !!u && u.ativo && u.papel === 'admin';
+}
+
+/** Carrega um bar: o administrador acessa qualquer um; o dono só os próprios. */
 export async function barDoUsuario(barId: string, usuarioId: string) {
-  const bar = await q1('select * from bares where id=$1 and usuario_id=$2', [barId, usuarioId]);
+  const admin = await ehAdmin(usuarioId);
+  const bar = admin
+    ? await q1('select * from bares where id=$1', [barId])
+    : await q1('select * from bares where id=$1 and usuario_id=$2', [barId, usuarioId]);
   if (!bar) throw new ErroHttp(404, 'Bar não encontrado');
   return bar;
 }
@@ -21,6 +30,7 @@ export function barParaPainel(bar: any) {
     ...resto,
     mp_configurado: !!mp_access_token_enc,
     plano_efetivo: planoEfetivo(bar.plano, bar.plano_expira_em).id,
+    ...situacaoCobranca(bar),
   };
 }
 

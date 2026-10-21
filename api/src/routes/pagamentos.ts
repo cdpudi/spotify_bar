@@ -4,6 +4,7 @@ import { config } from '../config.js';
 import { q, q1 } from '../db.js';
 import { barDoUsuario } from '../lib/bares.js';
 import { ErroHttp } from '../lib/erros.js';
+import { listarPagamentos } from '../lib/lista-pagamentos.js';
 import { PLANOS, type PlanoId } from '../lib/planos.js';
 import { confirmarPagamento, criarPixAssinatura, statusPagamento } from '../payments/index.js';
 
@@ -14,6 +15,7 @@ const paraCliente = (p: any) => ({
   valor_centavos: p.valor_centavos,
   status: p.status,
   provider: p.provider,
+  forma: p.forma,
   brcode: p.brcode,
   qr_base64: p.qr_base64,
   expira_em: p.expira_em,
@@ -35,14 +37,11 @@ export async function rotasPagamentos(app: FastifyInstance) {
     return reply.code(201).send(paraCliente(p));
   });
 
+  // Pagamentos do bar (dono e administrador): super chats e mensalidades, com forma de recebimento
   app.get('/api/bares/:id/pagamentos', auth, async (req) => {
     const bar = await barDoUsuario((req.params as any).id, req.user.sub);
-    const lista = await q(
-      `select p.*, f.nome as musica from pagamentos p left join fila f on f.id=p.fila_id
-        where p.bar_id=$1 order by p.criado_em desc limit 100`,
-      [bar.id],
-    );
-    return lista.map((p: any) => ({ ...paraCliente(p), musica: p.musica, criado_em: p.criado_em }));
+    const f = req.query as Record<string, string | undefined>;
+    return listarPagamentos({ barId: bar.id, tipo: f.tipo, forma: f.forma, status: f.status, de: f.de, ate: f.ate });
   });
 
   // Consulta de um pagamento (dono do bar)
@@ -61,9 +60,11 @@ export async function rotasPagamentos(app: FastifyInstance) {
     if (p.tipo !== 'superchat') throw new ErroHttp(400, 'Apenas super chats são confirmados manualmente');
     if (p.provider === 'mercadopago') throw new ErroHttp(400, 'Pagamentos do Mercado Pago são confirmados automaticamente');
     try {
-      return paraCliente(await confirmarPagamento(p.id));
+      const { forma } = z.object({ forma: z.enum(['pix', 'dinheiro', 'outro']).default('pix') }).parse(req.body ?? {});
+      return paraCliente(await confirmarPagamento(p.id, { forma, registradoPor: req.user.sub }));
     } catch (e) {
-      throw new ErroHttp(409, (e as Error).message);
+      if (!(e instanceof Error) || e.name === 'ZodError') throw e;
+      throw new ErroHttp(409, e.message);
     }
   });
 
