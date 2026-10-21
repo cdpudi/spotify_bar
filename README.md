@@ -43,8 +43,8 @@ cd ../web && npm run build   # typecheck + build
 1. Em <https://developer.spotify.com/dashboard> crie um app e cadastre o **Redirect URI**:
    - dev: `http://127.0.0.1:3002/api/spotify/callback` (use `127.0.0.1`, não `localhost`)
    - produção: `https://spotify-bar.umg.com.br/api/spotify/callback`
-2. Em `api/.env`: `SPOTIFY_MODE=real`, `SPOTIFY_CLIENT_ID`, `SPOTIFY_CLIENT_SECRET`, `API_URL=http://127.0.0.1:3002`.
-3. No painel → **Spotify** → *Conectar conta* (precisa ser **Premium**) → abra o app Spotify no celular do bar → *Atualizar* → *Usar neste bar*.
+2. Em `api/.env`: `SPOTIFY_MODE=real` e `API_URL=http://127.0.0.1:3002`. O Client ID/Secret podem ir no `.env` (viram o "App principal") **ou** ser cadastrados no painel, em **Plataforma → Spotify da plataforma → Novo aplicativo** (pode haver vários apps).
+3. No painel → **Spotify da plataforma** → *Conectar conta* (precisa ser **Premium**) → abra o app Spotify no celular do bar → *Atualizar* → *Usar neste bar*.
 
 ## Deploy no Portainer
 
