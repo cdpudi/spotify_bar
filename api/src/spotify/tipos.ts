@@ -35,11 +35,19 @@ export interface PerfilSpotify {
   produto: string | null;
 }
 
+/** Credenciais de um aplicativo Spotify (Client ID/Secret). */
+export interface Credenciais {
+  clientId: string;
+  clientSecret: string;
+}
+
 export interface SpotifyProvider {
   modo: 'mock' | 'real';
-  urlAutorizacao(state: string): string;
-  trocarCodigo(codigo: string): Promise<Tokens>;
-  renovar(refreshToken: string): Promise<Omit<Tokens, 'refresh_token'> & { refresh_token?: string }>;
+  urlAutorizacao(state: string, cred: Credenciais): string;
+  /** Confere se o Client ID/Secret são aceitos pelo Spotify (client credentials). */
+  validarCredenciais(cred: Credenciais): Promise<void>;
+  trocarCodigo(codigo: string, cred: Credenciais): Promise<Tokens>;
+  renovar(refreshToken: string, cred: Credenciais): Promise<Omit<Tokens, 'refresh_token'> & { refresh_token?: string }>;
   perfil(token: string): Promise<PerfilSpotify>;
   buscar(token: string, termo: string): Promise<Faixa[]>;
   dispositivos(token: string): Promise<Dispositivo[]>;

@@ -1,5 +1,5 @@
 import { config } from '../config.js';
-import { ErroSpotify, type Dispositivo, type Faixa, type PerfilSpotify, type Reproducao, type SpotifyProvider } from './tipos.js';
+import { ErroSpotify, type Credenciais, type Dispositivo, type Faixa, type PerfilSpotify, type Reproducao, type SpotifyProvider } from './tipos.js';
 
 const API = 'https://api.spotify.com/v1';
 const CONTAS = 'https://accounts.spotify.com';
@@ -42,8 +42,8 @@ async function chamar(token: string, metodo: string, caminho: string, corpo?: un
   }
 }
 
-async function tokenEndpoint(params: Record<string, string>) {
-  const basic = Buffer.from(`${config.spotify.clientId}:${config.spotify.clientSecret}`).toString('base64');
+async function tokenEndpoint(params: Record<string, string>, cred: Credenciais) {
+  const basic = Buffer.from(`${cred.clientId}:${cred.clientSecret}`).toString('base64');
   const r = await fetch(`${CONTAS}/api/token`, {
     method: 'POST',
     headers: { Authorization: `Basic ${basic}`, 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -67,10 +67,10 @@ const paraFaixa = (t: any): Faixa => ({
 export const spotifyReal: SpotifyProvider = {
   modo: 'real',
 
-  urlAutorizacao(state) {
+  urlAutorizacao(state, cred) {
     const p = new URLSearchParams({
       response_type: 'code',
-      client_id: config.spotify.clientId,
+      client_id: cred.clientId,
       scope: ESCOPOS,
       redirect_uri: redirectUri(),
       state,
@@ -79,10 +79,14 @@ export const spotifyReal: SpotifyProvider = {
     return `${CONTAS}/authorize?${p}`;
   },
 
-  trocarCodigo: (codigo) =>
-    tokenEndpoint({ grant_type: 'authorization_code', code: codigo, redirect_uri: redirectUri() }),
+  async validarCredenciais(cred) {
+    await tokenEndpoint({ grant_type: 'client_credentials' }, cred);
+  },
 
-  renovar: (refreshToken) => tokenEndpoint({ grant_type: 'refresh_token', refresh_token: refreshToken }),
+  trocarCodigo: (codigo, cred) =>
+    tokenEndpoint({ grant_type: 'authorization_code', code: codigo, redirect_uri: redirectUri() }, cred),
+
+  renovar: (refreshToken, cred) => tokenEndpoint({ grant_type: 'refresh_token', refresh_token: refreshToken }, cred),
 
   async perfil(token): Promise<PerfilSpotify> {
     const me = await chamar(token, 'GET', '/me');

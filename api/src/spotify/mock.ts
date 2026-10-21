@@ -78,6 +78,9 @@ function atualizar(e: EstadoDispositivo) {
 export const spotifyMock: SpotifyProvider = {
   modo: 'mock',
 
+  async validarCredenciais() {
+    /* o modo simulado aceita qualquer credencial */
+  },
   urlAutorizacao(state) {
     return `${config.urlApi}/api/spotify/callback?code=mock-${Math.random().toString(36).slice(2, 8)}&state=${encodeURIComponent(state)}`;
   },

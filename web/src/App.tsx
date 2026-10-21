@@ -4,6 +4,7 @@ import AdminLayout from './pages/admin/Layout';
 import BaresCobranca from './pages/admin/BaresCobranca';
 import EstatisticasPagina from './pages/admin/EstatisticasPagina';
 import PagamentosPagina from './pages/admin/PagamentosPagina';
+import SpotifyPlataforma from './pages/admin/SpotifyPlataforma';
 import SuperChatsPagina from './pages/admin/SuperChatsPagina';
 import UsuariosPagina from './pages/admin/UsuariosPagina';
 import BarForm from './pages/admin/BarForm';
@@ -45,6 +46,7 @@ export default function App() {
         <Route path="plataforma/bares" element={<SoAdmin><BaresCobranca /></SoAdmin>} />
         <Route path="plataforma/pagamentos" element={<SoAdmin><PagamentosPagina plataforma /></SoAdmin>} />
         <Route path="plataforma/estatisticas" element={<SoAdmin><EstatisticasPagina plataforma /></SoAdmin>} />
+        <Route path="plataforma/spotify" element={<SoAdmin><SpotifyPlataforma /></SoAdmin>} />
         <Route path="plataforma/usuarios" element={<SoAdmin><UsuariosPagina /></SoAdmin>} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />

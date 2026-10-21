@@ -238,6 +238,38 @@ await passo('permissões: dono só altera o catálogo; dados, Spotify, Pix e cri
   assert.equal((await http('GET', `/api/public/bares/${slug}/catalogo`, undefined, adm)).status, 401);
 });
 
+await passo('Spotify: apps (Client ID/Secret), capacidade e uma conta por bar', async () => {
+  assert.equal((await http('GET', '/api/spotify/apps', undefined, dono2)).status, 403, 'dono não vê apps');
+  const cid = `client-id-teste-${sufixo}`;
+  const novo = await http('POST', '/api/spotify/apps', { nome: 'App teste', client_id: cid, client_secret: 'secret-teste-123456', limite_usuarios: 2 }, adm);
+  assert.equal(novo.status, 201);
+  assert.equal(novo.j.livres, 2);
+  assert.equal(novo.j.client_secret, undefined, 'o secret nunca volta para o painel');
+  assert.equal((await http('POST', '/api/spotify/apps', { nome: 'Repetido', client_id: cid, client_secret: 'secret-teste-123456' }, adm)).status, 409);
+  assert.equal((await http('POST', '/api/spotify/apps', { nome: 'X', client_id: 'curto', client_secret: 'x' }, adm)).status, 400);
+  const ed = await http('PATCH', `/api/spotify/apps/${novo.j.id}`, { limite_usuarios: 1, ativo: false }, adm);
+  assert.equal(ed.j.limite_usuarios, 1);
+  assert.equal(ed.j.ativo, false);
+  const lista = (await http('GET', '/api/spotify/apps', undefined, adm)).j;
+  assert.ok(lista.some((a: any) => a.id === novo.j.id && a.usados === 0));
+  assert.equal((await http('DELETE', `/api/spotify/apps/${novo.j.id}`, undefined, adm)).status, 200);
+
+  // capacidade e uso das contas
+  const c = (await http('GET', '/api/spotify/contas', undefined, adm)).j;
+  assert.ok(c.capacidade.contas >= 1 && c.capacidade.em_uso >= 1);
+  const daqui = c.contas.find((x: any) => x.bar_id === bar.id);
+  assert.ok(daqui, 'conta do bar demo aparece como em uso');
+
+  // uma conta não pode atender dois bares
+  const dupla = await http('PUT', `/api/bares/${bar2.id}/spotify`, { conta_id: daqui.id, device_id: 'celular-bar:outro', device_nome: 'Outro' }, adm);
+  assert.equal(dupla.status, 409);
+  assert.match(dupla.j.erro, /já atende/);
+  assert.equal((await http('PATCH', `/api/spotify/contas/${daqui.id}`, { plano_spotify: 'familia', grupo_familia: 'Família Teste' }, adm)).status, 200);
+  const dep = (await http('GET', '/api/spotify/contas', undefined, adm)).j.contas.find((x: any) => x.id === daqui.id);
+  assert.equal(dep.plano_spotify, 'familia');
+  assert.equal(dep.grupo_familia, 'Família Teste');
+});
+
 await passo('cobrança: mensalidade em dinheiro com próximo vencimento, situação, assinatura por Pix e bloqueio', async () => {
   const em3dias = new Date(Date.now() + 3 * 86400000).toISOString().slice(0, 10);
   assert.equal((await http('POST', `/api/admin/bares/${bar2.id}/mensalidades`, { plano: 'mensal', forma: 'dinheiro' }, dono2)).status, 403);

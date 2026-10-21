@@ -1,4 +1,4 @@
-import { BarChart3, Building2, CreditCard, Disc3, LayoutDashboard, ListMusic, LogOut, Plus, QrCode, Receipt, Store, Users, Wallet, Zap } from 'lucide-react';
+import { BarChart3, Building2, CreditCard, Disc3, LayoutDashboard, ListMusic, KeyRound, LogOut, Plus, QrCode, Receipt, Store, Users, Wallet, Zap } from 'lucide-react';
 import { NavLink, Navigate, Outlet, useNavigate } from 'react-router-dom';
 import { Carregando, Logo, Select } from '../../components/ui';
 import { useAuth } from '../../lib/auth';
@@ -24,6 +24,7 @@ const MENU: ItemMenu[] = [
 const PLATAFORMA: ItemMenu[] = [
   { to: '/admin/plataforma/bares', rotulo: 'Bares e cobrança', curto: 'Cobrança', Icone: Building2, admin: true },
   { to: '/admin/plataforma/pagamentos', rotulo: 'Todos os pagamentos', curto: 'Recebido', Icone: Receipt, admin: true },
+  { to: '/admin/plataforma/spotify', rotulo: 'Spotify da plataforma', curto: 'Apps', Icone: KeyRound, admin: true },
   { to: '/admin/plataforma/estatisticas', rotulo: 'Estatísticas gerais', curto: 'Geral', Icone: BarChart3, admin: true },
   { to: '/admin/plataforma/usuarios', rotulo: 'Responsáveis', curto: 'Usuários', Icone: Users, admin: true },
 ];

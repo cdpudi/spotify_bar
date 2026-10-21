@@ -138,6 +138,9 @@ export async function rotasBares(app: FastifyInstance) {
       const conta = await q1('select id from spotify_contas where id=$1', [d.conta_id]);
       if (!conta) throw new ErroHttp(404, 'Conta Spotify não encontrada');
       if (!d.device_id) throw new ErroHttp(400, 'Selecione um dispositivo');
+      // uma conta toca em um único lugar por vez: não pode atender dois bares
+      const contaEmUso = await q1('select nome from bares where spotify_conta_id=$1 and id<>$2', [d.conta_id, id]);
+      if (contaEmUso) throw new ErroHttp(409, `Esta conta Spotify já atende o bar "${contaEmUso.nome}". Cada conta toca em um único lugar por vez — use outra conta.`);
       const uso = await q1('select nome from bares where spotify_device_id=$1 and id<>$2', [d.device_id, id]);
       if (uso) throw new ErroHttp(409, `Este dispositivo já está em uso pelo bar "${uso.nome}"`);
       try {

@@ -67,6 +67,12 @@ spotify_bar/
 - **Responsável pelo bar** (`papel='dono'`): **altera apenas o catálogo**. Também acompanha o painel ao vivo, **controla o player/fila** (pausar, pular, remover — operação do dia a dia), confirma "Recebi" de super chat, **vê os pagamentos que o bar fez à plataforma (mensalidades), a lista de super chats do público (recebido ou não), as estatísticas do próprio bar** (somente leitura), o QR Code e o plano/vencimento. **Não paga nem troca de plano:** a tela de plano só mostra os cards e destaca o atual; para mudar, entra em contato com o administrador.
 - Premissa: moderação da fila e confirmação de super chat ficam com o responsável por serem operação, não "informação" do bar. Se quiser restringir, é trocar `auth`→`admin` em `routes/bares.ts`/`pagamentos.ts`.
 
+### Spotify: apps, contas e capacidade (21/10/2026)
+- **Limites reais:** (1) cada conta Spotify toca em **um aparelho por vez**; (2) Família/Duo = contas **separadas**, cada uma com reprodução própria; (3) o **app** (Client ID/Secret) tem cota de usuários em modo de desenvolvimento (User Management).
+- **Painel "Spotify da plataforma"** (admin, `/admin/plataforma/spotify`): cadastra **vários aplicativos** (Client ID + Secret **cifrado**, validado no Spotify ao salvar, limite de "lugares"), vê lugares usados/livres, ativa/desativa; conecta contas escolhendo o app e o plano (Individual/Duo/Família + nome do grupo); mostra a **capacidade** (contas em uso/livres, lugares livres nos apps). O app do ambiente (`SPOTIFY_CLIENT_ID/SECRET`) é registrado sozinho como "App principal" e as contas já conectadas são vinculadas a ele.
+- Cada conta guarda o **app com que foi conectada** (o refresh do token usa as credenciais desse app). Conectar sem escolher app usa o primeiro ativo com lugar livre; app lotado é recusado.
+- **Uma conta atende no máximo um bar** (regra no servidor + índice único no banco); um dispositivo também só atende um bar. A tela "Spotify do bar" lista as contas indicando "Livre / Neste bar / Atende X".
+
 ### Cobrança, vencimento e bloqueio
 - `bares.plano` + `plano_expira_em` = plano e **próximo vencimento**. Situação calculada (`lib/cobranca.ts`): **Free · Em dia · Vence em breve (≤ 7 dias) · Vencido · Bloqueado**.
 - **Tela "Bares e cobrança"** (admin): lista com plano, vencimento ("em N dias"/"há N dias"), último pagamento (data, forma, valor), pedidos; filtros por situação; ações **Registrar pagamento**, **Bloquear** (com motivo) e **Desbloquear**.
@@ -115,7 +121,8 @@ spotify_bar/
 ## 5. O que falta para entrar em produção ⏳
 
 ### Bloqueantes (sem isso não sobe)
-- [ ] **Criar o app no Spotify Developer Dashboard** e cadastrar o Redirect URI `https://spotify-bar.umg.com.br/api/spotify/callback`; preencher `SPOTIFY_CLIENT_ID/SECRET`. **Testar o modo `real` de ponta a ponta com um Premium real** (OAuth, dispositivos, fila, play) — o modo real foi implementado seguindo a API oficial, mas **ainda não foi exercitado** (não há credenciais neste ambiente).
+- [x] ~~App no Spotify Developer Dashboard~~ criado e conectado em desenvolvimento (App principal). Em produção: adicionar o Redirect URI `https://spotify-bar.umg.com.br/api/spotify/callback` ao app.
+- [ ] (original) **Criar o app no Spotify Developer Dashboard** e cadastrar o Redirect URI `https://spotify-bar.umg.com.br/api/spotify/callback`; preencher `SPOTIFY_CLIENT_ID/SECRET`. **Testar o modo `real` de ponta a ponta com um Premium real** (OAuth, dispositivos, fila, play) — o modo real foi implementado seguindo a API oficial, mas **ainda não foi exercitado** (não há credenciais neste ambiente).
 - [ ] **Definir e configurar o recebimento Pix das assinaturas** (`PLATFORM_PIX_PROVIDER` + chave ou token Mercado Pago) e **testar um Pix real** (estático e/ou Mercado Pago, incluindo webhook `…/api/webhooks/mercadopago?secret=…` cadastrado no painel MP). Hoje só o modo `mock` foi exercitado.
 - [ ] **Apontar o DNS** `spotify-bar.umg.com.br` para a VPS e **subir a stack no Portainer** (variáveis do `.env.example`; gerar `JWT_SECRET`/`ENCRYPTION_KEY` fortes e **guardar a `ENCRYPTION_KEY`**).
 - [ ] **Backup do Postgres** (volume `spotify-bar-db`) — definir rotina.
@@ -161,6 +168,7 @@ Veja o [README.md](README.md) (rodar local, testes, deploy no Portainer, variáv
 
 | Data | Mudança |
 |---|---|
+| 21/10/2026 | Vários apps Spotify (Client ID/Secret) com painel de capacidade, plano da conta (individual/duo/família) e regra de uma conta por bar; app existente vinculado como "App principal". e2e com 19 cenários. |
 | 21/10/2026 | Playlist automática (catálogo em ordem aleatória quando ninguém pede), opção por bar; correção de comandos do player no Spotify real; e2e com 18 cenários. |
 | 21/10/2026 | Ajuste: pagamentos do responsável = mensalidades à plataforma; nova tela Super chat (recebido ou não); plano só consulta (troca via administrador; `/assinar` passou a ser só admin). |
 | 21/10/2026 | Perfis admin/responsável, cobrança com vencimento e bloqueio, pagamentos por forma, estatísticas de pedidos (e2e: 17 cenários). |
