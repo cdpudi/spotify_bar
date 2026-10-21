@@ -7,7 +7,7 @@ import { useAuth } from '../../lib/auth';
 import { tempo } from '../../lib/format';
 import { useBar } from './contexto';
 
-interface Item { id: string; spotify_track_id: string; nome: string; artistas: string; capa_url: string | null; duracao_ms: number; estilo: string }
+interface Item { id: string; spotify_track_id: string; nome: string; artistas: string; album?: string | null; capa_url: string | null; duracao_ms: number; estilo: string }
 interface Faixa { id: string; uri: string; nome: string; artistas: string; album: string; capa_url: string | null; duracao_ms: number; no_catalogo: boolean }
 
 export default function Catalogo() {
@@ -108,7 +108,7 @@ export default function Catalogo() {
           <ul className="space-y-1">
             {achadas.map((f) => (
               <li key={f.id} className="flex items-center gap-3 rounded-lg p-2 hover:bg-elevated">
-                <Capa url={f.capa_url} titulo={f.nome} className="size-11" />
+                <Capa url={f.capa_url} titulo={f.nome} className="size-14" />
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-semibold">{f.nome}</p>
                   <p className="truncate text-xs text-muted">{f.artistas} · {f.album} · {tempo(f.duracao_ms)}</p>
@@ -132,10 +132,10 @@ export default function Catalogo() {
           <ul className="divide-y divide-line/60">
             {visiveis.map((i) => (
               <li key={i.id} className="flex items-center gap-3 py-2">
-                <Capa url={i.capa_url} titulo={i.nome} className="size-10" />
+                <Capa url={i.capa_url} titulo={i.nome} className="size-14" />
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-semibold">{i.nome}</p>
-                  <p className="truncate text-xs text-muted">{i.artistas} · {tempo(i.duracao_ms)}</p>
+                  <p className="truncate text-xs text-muted">{i.artistas}{i.album ? ` · ${i.album}` : ''} · {tempo(i.duracao_ms)}</p>
                 </div>
                 <Select value={i.estilo} onChange={(e) => mudarEstilo(i, e.target.value)} className="!h-8 max-w-36 !text-xs" aria-label={`Estilo de ${i.nome}`}>
                   {[...new Set([...bar.estilos, i.estilo])].map((e) => <option key={e}>{e}</option>)}
