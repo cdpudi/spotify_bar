@@ -14,6 +14,7 @@ export interface ItemFila {
   meu_pedido: boolean;
   posicao: number;
   solicitante_apelido: string | null;
+  automatica: boolean;
 }
 
 export interface EstadoSala {
@@ -24,7 +25,7 @@ export interface EstadoSala {
   };
   tocando: null | {
     nome: string; artistas: string; capa_url: string | null; duracao_ms: number;
-    progresso_ms: number; tocando: boolean; atualizado_em: string;
+    progresso_ms: number; tocando: boolean; atualizado_em: string; automatica: boolean;
   };
   player_online: boolean;
   fila: ItemFila[];

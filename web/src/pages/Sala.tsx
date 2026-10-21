@@ -271,6 +271,7 @@ function Tocando({ estado, skewMs }: { estado: EstadoSala; skewMs: number }) {
         <p className="mb-3 flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-muted">
           {t?.tocando ? <Equalizador /> : <span className="size-2 rounded-full bg-faint" />}
           {t ? (t.tocando ? 'Tocando agora' : 'Pausado') : 'Aguardando música'}
+          {t?.automatica && <span className="ml-auto rounded-full bg-elevated px-2 py-0.5 text-[0.65rem] normal-case tracking-normal text-muted">Playlist do bar</span>}
         </p>
         {t ? (
           <div className="flex items-center gap-4 lg:flex-col lg:items-stretch">
@@ -319,7 +320,7 @@ function Fila({ fila, onVotar, onEscolher }: { fila: ItemFila[]; onVotar: (f: It
             <p className="truncate font-semibold">{f.nome}</p>
             <p className="flex items-center gap-1.5 truncate text-xs text-muted">
               {f.super && <span className="inline-flex items-center gap-0.5 font-bold text-gold"><Crown className="size-3" /> Super chat</span>}
-              {f.status === 'enviada' && !f.super && <span className="font-bold text-brand">Próxima</span>}
+              {f.status === 'enviada' && !f.super && <span className="font-bold text-brand">{f.automatica ? 'Próxima · playlist do bar' : 'Próxima'}</span>}
               <span className="truncate">{f.artistas}{f.solicitante_apelido ? ` · ${f.solicitante_apelido}` : ''}</span>
             </p>
           </div>

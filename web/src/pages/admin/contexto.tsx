@@ -19,6 +19,7 @@ export interface BarAdmin {
   longitude: number | null;
   raio_metros: number;
   ativo: boolean;
+  playlist_automatica: boolean;
   plano: string;
   plano_efetivo: 'free' | 'mensal' | 'semestral' | 'anual';
   plano_expira_em: string | null;

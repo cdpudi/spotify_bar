@@ -53,6 +53,7 @@ spotify_bar/
 | Limites do Free: 30 músicas, 1 conta Spotify, sem super chat (**definição nossa — ver §6**)
 | Dono só altera catálogo; demais dados só admin | `routes/bares.ts`, `routes/spotify.ts`, `lib/bares.ts` |
 | Bar bloqueado some do público e para o player | `routes/publico.ts`, `worker.ts`, `routes/admin.ts` | | `lib/planos.ts` |
+| **Playlist automática:** com a fila vazia, o player sorteia músicas do catálogo (evita repetir dentro do intervalo do bar; relaxa se o catálogo for pequeno). Pedido do público sempre tem prioridade; configurável por bar (`playlist_automatica`) | `worker.ts` (`sortearAutomatica`), `routes/bares.ts` |
 | Um dispositivo Spotify só atende um bar | `routes/bares.ts` |
 | Multi-tenant: dono só acessa os próprios bares | `lib/bares.ts` |
 
@@ -135,6 +136,7 @@ spotify_bar/
 - [ ] Testes de carga (≥ 100 clientes simultâneos na sala; polling do worker × quantidade de bares — Spotify tem rate limit por app).
 
 ### Melhorias futuras
+- [ ] Playlist automática hoje é **interna** (o sistema sorteia do catálogo); criar uma playlist real na conta Spotify é opcional e não foi feito. Nota: a música sorteada é enviada à fila do Spotify ~15 s antes do fim, então um pedido que chegue depois disso toca logo após ela.
 - [ ] Importar playlist do Spotify para o catálogo; sugestão automática de estilo pelos gêneros do artista (a API do Spotify tem restringido campos como `genres`).
 - [ ] Moderação (bloquear músicas/explícitas, banir sessão), horário de funcionamento do bar, modo "festa" (sem votos).
 - [ ] Mapa na tela inicial; histórico/estatísticas (músicas mais pedidas, faturamento de super chat).
@@ -159,6 +161,7 @@ Veja o [README.md](README.md) (rodar local, testes, deploy no Portainer, variáv
 
 | Data | Mudança |
 |---|---|
+| 21/10/2026 | Playlist automática (catálogo em ordem aleatória quando ninguém pede), opção por bar; correção de comandos do player no Spotify real; e2e com 18 cenários. |
 | 21/10/2026 | Ajuste: pagamentos do responsável = mensalidades à plataforma; nova tela Super chat (recebido ou não); plano só consulta (troca via administrador; `/assinar` passou a ser só admin). |
 | 21/10/2026 | Perfis admin/responsável, cobrança com vencimento e bloqueio, pagamentos por forma, estatísticas de pedidos (e2e: 17 cenários). |
 | 21/10/2026 | Projeto criado: API, front, Docker/Portainer, testes unitários e e2e, documentação. Repositório privado no GitHub. |

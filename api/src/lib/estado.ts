@@ -11,7 +11,7 @@ export const ORDEM_FILA = `
 
 const COLUNAS_FILA = `
   f.id, f.nome, f.artistas, f.capa_url, f.duracao_ms, f.super, f.status, f.criado_em, f.super_pago_em,
-  f.solicitante_apelido, f.catalogo_id, f.spotify_track_id,
+  f.solicitante_apelido, f.catalogo_id, f.spotify_track_id, f.automatica,
   (select count(*)::int from votos v where v.fila_id = f.id) as votos`;
 
 /** Estado público da sala: o que toca agora, a fila ordenada e os votos do visitante. */
@@ -59,6 +59,7 @@ export async function montarEstado(barId: string, sid?: string) {
           progresso_ms: player.progresso_ms,
           tocando: player.tocando,
           atualizado_em: player.atualizado_em,
+          automatica: !!(await q1(`select 1 from fila where bar_id=$1 and status='tocando' and automatica and spotify_track_id=$2`, [barId, player.track_id])),
         }
       : null,
     player_online: player?.dispositivo_online ?? false,

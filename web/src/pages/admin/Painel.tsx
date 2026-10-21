@@ -166,7 +166,7 @@ export default function Painel() {
                   <p className="truncate text-sm font-semibold">{f.nome}</p>
                   <p className="flex items-center gap-1.5 truncate text-xs text-muted">
                     {f.super && <span className="inline-flex shrink-0 items-center gap-0.5 font-bold text-gold"><Crown className="size-3" /> Super</span>}
-                    {f.status === 'enviada' && <span className="shrink-0 font-bold text-brand">Próxima</span>}
+                    {f.status === 'enviada' && <span className="shrink-0 font-bold text-brand">{f.automatica ? 'Próxima · automática' : 'Próxima'}</span>}
                     <span className="truncate">{f.artistas}{f.solicitante_apelido ? ` · ${f.solicitante_apelido}` : ''}</span>
                   </p>
                 </div>

@@ -11,7 +11,7 @@ export interface FiltroEstat {
 export async function estatisticas(f: FiltroEstat) {
   const params = [f.barId ?? null, f.usuarioId ?? null, f.de ?? null, f.ate ?? null];
   const onde = `
-    f.status not in ('aguardando_pagamento','removida')
+    f.status not in ('aguardando_pagamento','removida') and not f.automatica
     and ($1::uuid is null or f.bar_id = $1)
     and ($2::uuid is null or b.usuario_id = $2)
     and ($3::date is null or f.criado_em >= $3::date)

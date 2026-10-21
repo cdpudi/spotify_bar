@@ -33,6 +33,7 @@ const dadosBar = z.object({
   cooldown_repeticao_min: z.number().int().min(0).max(720).default(30),
   superchat_valor_centavos: z.number().int().min(100).max(100000).default(1000),
   ativo: z.boolean().default(true),
+  playlist_automatica: z.boolean().default(true),
 });
 
 const urlDoBar = (b: { slug: string; qr_token: string }) => `${config.urlPublica}/b/${b.slug}?q=${b.qr_token}`;
@@ -61,11 +62,11 @@ export async function rotasBares(app: FastifyInstance) {
     const slug = `${slugificar(d.nome)}-${randomBytes(2).toString('hex')}`;
     const bar = await q1(
       `insert into bares (usuario_id,nome,slug,cnpj,telefone,email,cep,logradouro,numero,complemento,bairro,cidade,uf,
-         latitude,longitude,raio_metros,qr_token,estilos,max_pedidos_por_sessao,cooldown_repeticao_min,superchat_valor_centavos,ativo)
-       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22) returning *`,
+         latitude,longitude,raio_metros,qr_token,estilos,max_pedidos_por_sessao,cooldown_repeticao_min,superchat_valor_centavos,ativo,playlist_automatica)
+       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23) returning *`,
       [d.usuario_id, d.nome, slug, d.cnpj, d.telefone, d.email, d.cep, d.logradouro, d.numero, d.complemento, d.bairro, d.cidade, d.uf,
         d.latitude, d.longitude, d.raio_metros, tokenAleatorio(12), d.estilos, d.max_pedidos_por_sessao, d.cooldown_repeticao_min,
-        d.superchat_valor_centavos, d.ativo],
+        d.superchat_valor_centavos, d.ativo, d.playlist_automatica],
     );
     return reply.code(201).send(barParaPainel(bar));
   });
@@ -83,9 +84,9 @@ export async function rotasBares(app: FastifyInstance) {
     const bar = await q1(
       `update bares set nome=$2,cnpj=$3,telefone=$4,email=$5,cep=$6,logradouro=$7,numero=$8,complemento=$9,bairro=$10,cidade=$11,uf=$12,
          latitude=$13,longitude=$14,raio_metros=$15,estilos=$16,max_pedidos_por_sessao=$17,cooldown_repeticao_min=$18,
-         superchat_valor_centavos=$19,ativo=$20,atualizado_em=now() where id=$1 returning *`,
+         superchat_valor_centavos=$19,ativo=$20,playlist_automatica=$21,atualizado_em=now() where id=$1 returning *`,
       [id, d.nome, d.cnpj, d.telefone, d.email, d.cep, d.logradouro, d.numero, d.complemento, d.bairro, d.cidade, d.uf, d.latitude,
-        d.longitude, d.raio_metros, d.estilos, d.max_pedidos_por_sessao, d.cooldown_repeticao_min, d.superchat_valor_centavos, d.ativo],
+        d.longitude, d.raio_metros, d.estilos, d.max_pedidos_por_sessao, d.cooldown_repeticao_min, d.superchat_valor_centavos, d.ativo, d.playlist_automatica],
     );
     notificar(id);
     return barParaPainel(bar);

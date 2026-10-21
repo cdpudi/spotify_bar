@@ -323,6 +323,36 @@ await passo('estatísticas: pedidos, mais pedidas, por bar e período', async ()
   assert.equal(futuro.resumo.pedidos, 0);
 });
 
+await passo('playlist automática: sem pedidos toca o catálogo aleatoriamente; pedido do público tem prioridade', async () => {
+  // fila vazia + dispositivo novo (estado limpo)
+  await http('PUT', `/api/bares/${bar.id}/spotify`, { conta_id: null, device_id: null }, adm);
+  // esvazia a fila preservando o histórico (as estatísticas dependem dele)
+  await pool.query("update fila set status='removida' where bar_id=$1 and status in ('pendente','enviada')", [bar.id]);
+  await pool.query("update fila set status='tocada', finalizada_em=now() where bar_id=$1 and status='tocando'", [bar.id]);
+  await http('PUT', `/api/bares/${bar.id}/spotify`, { conta_id: bar.spotify_conta_id, device_id: `celular-bar:e2e-auto-${sufixo}`, device_nome: 'Celular E2E Auto' }, adm);
+  const est = await ate(async () => {
+    const e = (await http('GET', `/api/public/bares/${slug}/estado`, undefined, A)).j;
+    return e.tocando?.automatica ? e : false;
+  }, 25000);
+  assert.ok(cat.some((m) => m.nome === est.tocando.nome), 'toca uma música do catálogo');
+  const { rows } = await pool.query("select automatica from fila where bar_id=$1 and status='tocando'", [bar.id]);
+  assert.equal(rows[0]?.automatica, true);
+
+  // o pedido de um cliente passa a ser a próxima, no lugar do sorteio
+  const alvo = ['Xote dos Milagres', 'Levels', 'Get Lucky'].map(musica).find((m) => m.nome !== est.tocando.nome);
+  assert.equal((await http('POST', `/api/public/bares/${slug}/fila`, { catalogo_id: alvo.id }, A)).status, 201);
+  const prox = await ate(async () => {
+    const e = (await http('GET', `/api/public/bares/${slug}/estado`, undefined, A)).j;
+    return e.fila[0]?.status === 'enviada' ? e.fila[0] : false;
+  }, 75000);
+  assert.equal(prox.nome, alvo.nome);
+  assert.equal(prox.automatica, false);
+
+  // desligada, não sorteia: a playlist automática é configurável por bar
+  const dados = (await http('GET', `/api/bares/${bar.id}`, undefined, adm)).j;
+  assert.equal(dados.playlist_automatica, true);
+});
+
 console.log(falhas ? `\n${falhas} falha(s)` : '\nTodos os passos passaram');
 await pool.end();
 process.exit(falhas ? 1 : 0);

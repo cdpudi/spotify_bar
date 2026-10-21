@@ -19,6 +19,23 @@ const PROXIMA_SQL = `
       from fila f where f.bar_id = $1 and f.status = 'pendente'
   ) t order by ${ORDEM_FILA} limit 1`;
 
+/**
+ * Playlist automática: sorteia uma música do catálogo quando ninguém pediu nada.
+ * Evita o que está na fila/tocando e o que tocou dentro do intervalo de repetição do bar;
+ * se o catálogo for pequeno demais para isso, relaxa o intervalo (nunca repete a que está tocando).
+ */
+async function sortearAutomatica(bar: any) {
+  const base = `select c.* from catalogo c where c.bar_id = $1
+      and not exists (select 1 from fila f where f.bar_id = c.bar_id and f.spotify_track_id = c.spotify_track_id
+                      and f.status in ('pendente','enviada','tocando','aguardando_pagamento'))`;
+  const comIntervalo = await q1(
+    `${base} and not exists (select 1 from fila f where f.bar_id = c.bar_id and f.spotify_track_id = c.spotify_track_id
+                      and f.status = 'tocada' and f.finalizada_em > now() - make_interval(mins => $2)) order by random() limit 1`,
+    [bar.id, Math.max(1, bar.cooldown_repeticao_min ?? 30)],
+  );
+  return comIntervalo ?? (await q1(`${base} order by random() limit 1`, [bar.id]));
+}
+
 async function processarBar(bar: any) {
   const token = await tokenDaConta(bar.spotify_conta_id);
   const rep = await spotify.reproducao(token, bar.spotify_device_id);
@@ -78,10 +95,26 @@ async function processarBar(bar: any) {
     const acabando = !!faixa && rep!.tocando && restante <= config.spotify.antecedenciaMs;
     const jaEnviada = await q1(`select 1 from fila where bar_id=$1 and status='enviada'`, [bar.id]);
     if ((ociosa || acabando) && !jaEnviada) {
-      const prox = await q1(PROXIMA_SQL, [bar.id]);
+      let prox = await q1(PROXIMA_SQL, [bar.id]);
+      if (!prox && bar.playlist_automatica) {
+        const c = await sortearAutomatica(bar);
+        if (c) {
+          prox = await q1(
+            `insert into fila (bar_id, catalogo_id, spotify_track_id, uri, nome, artistas, capa_url, duracao_ms, status, solicitante_sessao, automatica)
+             values ($1,$2,$3,$4,$5,$6,$7,$8,'pendente','playlist-automatica', true) returning *`,
+            [bar.id, c.id, c.spotify_track_id, c.uri, c.nome, c.artistas, c.capa_url, c.duracao_ms],
+          );
+        }
+      }
       if (prox) {
-        if (ociosa) await spotify.tocar(token, prox.uri, bar.spotify_device_id);
-        else await spotify.adicionarNaFila(token, prox.uri, bar.spotify_device_id);
+        try {
+          if (ociosa) await spotify.tocar(token, prox.uri, bar.spotify_device_id);
+          else await spotify.adicionarNaFila(token, prox.uri, bar.spotify_device_id);
+        } catch (e) {
+          // música que o Spotify recusa (indisponível, URI inválido...) sai da fila para não travar o player em loop
+          await q(`update fila set status='removida' where id=$1`, [prox.id]);
+          throw e;
+        }
         await q(`update fila set status='enviada', enviada_em=now() where id=$1`, [prox.id]);
         mudou = true;
       }
@@ -97,7 +130,7 @@ async function ciclo() {
   rodando = true;
   try {
     const bares = await q(
-      `select id, spotify_conta_id, spotify_device_id from bares
+      `select id, spotify_conta_id, spotify_device_id, playlist_automatica, cooldown_repeticao_min from bares
         where ativo and not bloqueado and spotify_conta_id is not null and spotify_device_id is not null`,
     );
     for (const bar of bares) {

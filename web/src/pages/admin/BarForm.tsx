@@ -10,7 +10,7 @@ import { useBar } from './contexto';
 const vazio = {
   nome: '', cnpj: '', telefone: '', email: '', cep: '', logradouro: '', numero: '', complemento: '', bairro: '', cidade: '', uf: '',
   latitude: '', longitude: '', raio_metros: 150, estilos: [] as string[], max_pedidos_por_sessao: 3, cooldown_repeticao_min: 30,
-  superchat_valor_centavos: 1000, ativo: true, usuario_id: '',
+  superchat_valor_centavos: 1000, ativo: true, playlist_automatica: true, usuario_id: '',
 };
 type Form = typeof vazio;
 
@@ -43,7 +43,7 @@ export default function BarForm({ novo }: { novo?: boolean }) {
       numero: bar.numero ?? '', complemento: bar.complemento ?? '', bairro: bar.bairro ?? '', cidade: bar.cidade ?? '', uf: bar.uf ?? '',
       latitude: bar.latitude?.toString() ?? '', longitude: bar.longitude?.toString() ?? '', raio_metros: bar.raio_metros, estilos: bar.estilos,
       max_pedidos_por_sessao: bar.max_pedidos_por_sessao, cooldown_repeticao_min: bar.cooldown_repeticao_min,
-      superchat_valor_centavos: bar.superchat_valor_centavos, ativo: bar.ativo, usuario_id: bar.usuario_id,
+      superchat_valor_centavos: bar.superchat_valor_centavos, ativo: bar.ativo, playlist_automatica: bar.playlist_automatica, usuario_id: bar.usuario_id,
     });
   }, [bar?.id, novo]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -197,6 +197,10 @@ export default function BarForm({ novo }: { novo?: boolean }) {
         <label className="flex items-center gap-3 text-sm font-semibold">
           <input type="checkbox" checked={f.ativo} onChange={(e) => set('ativo', e.target.checked)} className="size-5 accent-[var(--color-brand)]" />
           Bar aberto (visível para os clientes)
+        </label>
+        <label className="flex items-start gap-3 text-sm font-semibold">
+          <input type="checkbox" checked={f.playlist_automatica} onChange={(e) => set('playlist_automatica', e.target.checked)} className="mt-0.5 size-5 accent-[var(--color-brand)]" />
+          <span>Playlist automática<span className="block text-xs font-normal text-muted">Quando ninguém pedir música, toca o catálogo do bar em ordem aleatória. Os pedidos do público sempre têm prioridade.</span></span>
         </label>
       </Cartao>
 
