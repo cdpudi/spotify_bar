@@ -52,7 +52,7 @@ export default function SpotifyConfig() {
 
   async function conectar() {
     try {
-      const { url } = await req('GET', '/api/spotify/conectar');
+      const { url } = await req('GET', `/api/spotify/conectar?retorno=${encodeURIComponent(window.location.origin)}`);
       window.location.href = url;
     } catch (e) {
       setMsg({ tipo: 'erro', texto: mensagemErro(e) });

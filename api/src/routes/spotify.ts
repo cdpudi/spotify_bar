@@ -5,6 +5,18 @@ import { ErroHttp } from '../lib/erros.js';
 import { cifrar } from '../lib/seguranca.js';
 import { ErroSpotify, spotify, tokenDaConta } from '../spotify/index.js';
 
+/** Aceita só a origem pública configurada ou localhost/127.0.0.1 (desenvolvimento). */
+function origemPermitida(valor: unknown): string | undefined {
+  if (typeof valor !== 'string') return undefined;
+  try {
+    const u = new URL(valor);
+    const ok = u.origin === new URL(config.urlPublica).origin || ['localhost', '127.0.0.1'].includes(u.hostname);
+    return ok ? u.origin : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 const contaPublica = `id, spotify_user_id, nome, email, produto, criado_em`;
 
 export async function rotasSpotify(app: FastifyInstance) {
@@ -23,20 +35,26 @@ export async function rotasSpotify(app: FastifyInstance) {
     if (spotify.modo === 'real' && (!config.spotify.clientId || !config.spotify.clientSecret)) {
       throw new ErroHttp(503, 'Integração Spotify não configurada no servidor (SPOTIFY_CLIENT_ID / SPOTIFY_CLIENT_SECRET)');
     }
-    const state = app.jwt.sign({ tipo: 'spotify', sub: req.user.sub }, { expiresIn: '10m' });
+        // volta para a mesma origem em que o admin está logado (127.0.0.1 e localhost têm localStorage separados)
+    const retorno = origemPermitida((req.query as any).retorno);
+    const state = app.jwt.sign({ tipo: 'spotify', sub: req.user.sub, retorno }, { expiresIn: '10m' });
     return { url: spotify.urlAutorizacao(state) };
   });
 
   // Retorno do Spotify (sem sessão: identifica o usuário pelo `state` assinado)
   app.get('/api/spotify/callback', async (req, reply) => {
     const { code, state, error } = req.query as Record<string, string | undefined>;
-    const volta = (params: string) => reply.redirect(`${config.urlPublica}/admin/spotify?${params}`);
+    const voltaPara = (b: string, params: string) => reply.redirect(`${b}/admin/spotify?${params}`);
+    let volta = (params: string) => voltaPara(config.urlPublica, params);
     if (error || !code || !state) return volta(`erro=${encodeURIComponent(error ?? 'autorização negada')}`);
     let usuarioId: string;
+    let base = config.urlPublica;
     try {
       const p: any = app.jwt.verify(state);
       if (p.tipo !== 'spotify') throw new Error();
       usuarioId = p.sub;
+      if (p.retorno) base = p.retorno;
+      volta = (params: string) => voltaPara(base, params);
     } catch {
       return volta('erro=' + encodeURIComponent('Solicitação expirada, tente conectar novamente'));
     }
