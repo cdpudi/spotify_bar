@@ -93,7 +93,20 @@ async function processarBar(bar: any) {
     const restante = faixa ? faixa.duracao_ms - rep!.progresso_ms : 0;
     const ociosa = !faixa;
     const acabando = !!faixa && rep!.tocando && restante <= config.spotify.antecedenciaMs;
-    const jaEnviada = await q1(`select 1 from fila where bar_id=$1 and status='enviada'`, [bar.id]);
+    const jaEnviada = await q1(`select id, uri, nome, enviada_em from fila where bar_id=$1 and status='enviada' order by enviada_em limit 1`, [bar.id]);
+
+    // O Spotify aceitou o comando mas nada começou a tocar (app do celular suspenso, aparelho dormindo...):
+    // reenvia a mesma música a cada ~10 s em vez de esperar parado, e avisa o painel.
+    if (ociosa && jaEnviada && Date.now() - new Date(jaEnviada.enviada_em).getTime() > 10_000) {
+      await q(`update fila set enviada_em=now() where id=$1`, [jaEnviada.id]);
+      await spotify.tocar(token, jaEnviada.uri, bar.spotify_device_id);
+      await q(
+        `update player_estado set erro=$2 where bar_id=$1`,
+        [bar.id, 'O Spotify recebeu a música mas o aparelho não começou a tocar. Abra o app Spotify no celular do bar, com a tela ligada, e toque qualquer música uma vez.'],
+      );
+      mudou = true;
+    }
+
     if ((ociosa || acabando) && !jaEnviada) {
       let prox = await q1(PROXIMA_SQL, [bar.id]);
       if (!prox && bar.playlist_automatica) {
