@@ -64,6 +64,12 @@ const paraFaixa = (t: any): Faixa => ({
   duracao_ms: t.duration_ms,
 });
 
+/**
+ * "Restriction violated" (403): o Spotify recusa o comando porque o estado atual não permite
+ * (ex.: pausar o que já está pausado, retomar o que já toca). Para pausar/retomar isso significa "já está como pedido".
+ */
+const restricao = (e: unknown) => e instanceof ErroSpotify && e.status === 403 && /restriction/i.test(e.message);
+
 export const spotifyReal: SpotifyProvider = {
   modo: 'real',
 
@@ -125,10 +131,18 @@ export const spotifyReal: SpotifyProvider = {
     await chamar(token, 'PUT', `/me/player/play?${new URLSearchParams({ device_id: deviceId })}`, { uris: [uri] });
   },
   async pausar(token, deviceId) {
-    await chamar(token, 'PUT', `/me/player/pause?${new URLSearchParams({ device_id: deviceId })}`);
+    try {
+      await chamar(token, 'PUT', `/me/player/pause?${new URLSearchParams({ device_id: deviceId })}`);
+    } catch (e) {
+      if (!restricao(e)) throw e;
+    }
   },
   async retomar(token, deviceId) {
-    await chamar(token, 'PUT', `/me/player/play?${new URLSearchParams({ device_id: deviceId })}`);
+    try {
+      await chamar(token, 'PUT', `/me/player/play?${new URLSearchParams({ device_id: deviceId })}`);
+    } catch (e) {
+      if (!restricao(e)) throw e;
+    }
   },
   async proxima(token, deviceId) {
     await chamar(token, 'POST', `/me/player/next?${new URLSearchParams({ device_id: deviceId })}`);

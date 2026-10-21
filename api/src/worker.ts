@@ -3,7 +3,7 @@ import { q, q1 } from './db.js';
 import { ORDEM_FILA } from './lib/estado.js';
 import { varrerPagamentos } from './payments/index.js';
 import { notificar } from './realtime.js';
-import { spotify, tokenDaConta } from './spotify/index.js';
+import { ErroSpotify, spotify, tokenDaConta } from './spotify/index.js';
 
 /**
  * Motor do player. A cada ciclo, para cada bar com conta+dispositivo Spotify:
@@ -124,8 +124,11 @@ async function processarBar(bar: any) {
           if (ociosa) await spotify.tocar(token, prox.uri, bar.spotify_device_id);
           else await spotify.adicionarNaFila(token, prox.uri, bar.spotify_device_id);
         } catch (e) {
-          // música que o Spotify recusa (indisponível, URI inválido...) sai da fila para não travar o player em loop
-          await q(`update fila set status='removida' where id=$1`, [prox.id]);
+          // 403 "Restriction violated" é estado do aparelho (não da música): a música volta a esperar.
+          // Qualquer outra recusa (indisponível, URI inválido...) tira a música da fila para não travar o player em loop.
+          const estadoDoAparelho = e instanceof ErroSpotify && e.status === 403;
+          if (!estadoDoAparelho) await q(`update fila set status='removida' where id=$1`, [prox.id]);
+          else if (prox.automatica) await q(`update fila set status='removida' where id=$1`, [prox.id]);
           throw e;
         }
         await q(`update fila set status='enviada', enviada_em=now() where id=$1`, [prox.id]);

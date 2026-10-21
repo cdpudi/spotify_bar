@@ -201,6 +201,9 @@ export async function rotasBares(app: FastifyInstance) {
       else if (acao === 'pular') await spotify.proxima(token, bar.spotify_device_id);
       else throw new ErroHttp(404, 'Ação inválida');
     } catch (e) {
+      if (e instanceof ErroSpotify && e.status === 403 && /restriction/i.test(e.message)) {
+        throw new ErroHttp(409, 'O Spotify não permite este comando agora (nada tocando, anúncio ou aparelho ocupado). Toque uma música no aparelho e tente de novo.');
+      }
       if (e instanceof ErroSpotify) throw new ErroHttp(502, e.message);
       throw e;
     }
